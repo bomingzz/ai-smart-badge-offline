@@ -1065,20 +1065,10 @@ export function Dashboard({
                         </div>
 
                         {/* Bottom Left description truncate */}
-                        <div className="absolute bottom-2 left-2 right-12 z-10">
+                        <div className="absolute bottom-2 left-2 right-2 z-10">
                           <p className="text-[10px] text-white truncate font-medium drop-shadow-sm">
                             {clip.description.split('-')[1]?.trim() || clip.description}
                           </p>
-                        </div>
-
-                        {/* Bottom Right alert/human badges */}
-                        <div className="absolute bottom-2 right-2 flex items-center gap-1.5 z-10">
-                          {clip.hasRedDot && (
-                            <span className="w-2 h-2 rounded-full bg-rose-500 shadow-sm animate-pulse" />
-                          )}
-                          {clip.hasHumanIcon && (
-                            <User className="w-3.5 h-3.5 text-white bg-slate-900/60 p-0.5 rounded-full" />
-                          )}
                         </div>
 
                         {/* Upload Progress Bar across card bottom */}

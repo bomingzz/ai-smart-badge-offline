@@ -667,36 +667,36 @@ export function SOPReportModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-        {/* Backdrop */}
+      <div className="fixed inset-0 max-w-md mx-auto z-[60] flex items-center justify-center px-3.5 py-4">
+        {/* Backdrop constrained to mobile container */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+          className="fixed inset-0 max-w-md mx-auto bg-slate-900/45 backdrop-blur-[2px]"
         />
 
         {/* Modal Window Container */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="relative w-full max-w-lg bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[88vh] my-auto mx-auto"
+          exit={{ opacity: 0, scale: 0.96, y: 10 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+          className="relative w-full max-w-[380px] bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-10 flex flex-col max-h-[82vh] my-auto mx-auto"
         >
           {/* Header Bar */}
-          <div className="px-4 sm:px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-20 backdrop-blur-xl">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs flex-shrink-0">
+          <div className="px-3.5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-20 backdrop-blur-xl">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-2xs flex-shrink-0">
                 <FileCheck className="w-4 h-4" />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                  <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
                     任务质检分析报告
                   </span>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                  <span className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-full font-bold border ${
                     activeReport.overallStatus === 'passed'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : activeReport.overallStatus === 'warning'
@@ -709,7 +709,7 @@ export function SOPReportModal({
                     }
                   </span>
                 </div>
-                <h3 className="text-xs sm:text-sm font-bold text-slate-800 mt-0.5 truncate">
+                <h3 className="text-xs font-bold text-slate-800 mt-0.5 truncate">
                   {activeReport.title}
                 </h3>
               </div>
@@ -717,7 +717,7 @@ export function SOPReportModal({
 
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors font-bold text-xs cursor-pointer flex-shrink-0 ml-2"
+              className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors font-bold text-xs cursor-pointer flex-shrink-0 ml-1.5"
               aria-label="关闭"
             >
               ✕
@@ -730,39 +730,39 @@ export function SOPReportModal({
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="px-5 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-[11px] flex items-center justify-between font-mono"
+              className="px-3.5 py-2 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-[10.5px] flex items-center justify-between font-mono"
             >
               <span className="flex items-center gap-1.5 truncate">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                 已成功导出: <strong className="truncate">[{downloadedReportId}.html]</strong>
               </span>
-              <span className="text-[10px] text-emerald-600 font-semibold flex-shrink-0 ml-1">HTML 格式</span>
+              <span className="text-[9.5px] text-emerald-600 font-semibold flex-shrink-0 ml-1">HTML 格式</span>
             </motion.div>
           )}
 
-          {/* Single Task Analysis Report View (No other tasks list) */}
-          <div className="p-4 overflow-y-auto space-y-3.5 custom-scrollbar flex-1">
+          {/* Single Task Analysis Report View */}
+          <div className="p-3.5 overflow-y-auto space-y-3 custom-scrollbar flex-1">
             {/* Top Score & Meta Card */}
-            <div className={`p-4 rounded-2xl border ${
+            <div className={`p-3 rounded-2xl border ${
               activeReport.overallStatus === 'passed'
                 ? 'bg-emerald-50/40 border-emerald-200'
                 : 'bg-amber-50/40 border-amber-200'
             }`}>
-              <div className="flex items-start justify-between gap-3 border-b border-slate-200/70 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-14 h-14 rounded-2xl font-mono font-bold flex flex-col items-center justify-center shadow-xs border flex-shrink-0 ${
+              <div className="flex items-start justify-between gap-2 border-b border-slate-200/70 pb-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className={`w-12 h-12 rounded-xl font-mono font-bold flex flex-col items-center justify-center shadow-2xs border flex-shrink-0 ${
                     activeReport.overallStatus === 'passed'
                       ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                       : 'bg-amber-50 text-amber-700 border-amber-300'
                   }`}>
-                    <span className="text-xl leading-none">{activeReport.score}</span>
-                    <span className="text-[9px] font-sans font-medium mt-0.5">质检得分</span>
+                    <span className="text-lg leading-none">{activeReport.score}</span>
+                    <span className="text-[8.5px] font-sans font-medium mt-0.5">质检得分</span>
                   </div>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-800">
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold text-slate-800 leading-snug line-clamp-2">
                       {activeReport.sopName}
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[10.5px] text-slate-500 mt-0.5 leading-snug">
                       {activeReport.overallStatus === 'passed' 
                         ? '全流程步骤严格符合标准规范，无违规扣分项' 
                         : '现场视频识别到非标操作，已联动下发纠偏工单'}
@@ -773,46 +773,46 @@ export function SOPReportModal({
                 <button
                   type="button"
                   onClick={() => handleCopyReportId(activeReport.reportId)}
-                  className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 text-[10px] font-mono flex items-center gap-1 transition-all active:scale-95 shadow-xs cursor-pointer flex-shrink-0"
+                  className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-300 text-[9.5px] font-mono flex items-center gap-1 transition-all active:scale-95 shadow-2xs cursor-pointer flex-shrink-0"
                   title="点击复制报告编号"
                 >
-                  {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  {copied ? <Check className="w-2.5 h-2.5 text-emerald-600" /> : <Copy className="w-2.5 h-2.5" />}
                   <span>{copied ? '已复制' : '复制编号'}</span>
                 </button>
               </div>
 
-              {/* Task Meta Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-3 text-[11px]">
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80">
-                  <span className="text-slate-400 block text-[10px] mb-0.5">报告编号</span>
-                  <span className="font-mono font-bold text-slate-800 truncate block">{activeReport.reportId}</span>
+              {/* Task Meta Grid - 2 Columns Compact Layout */}
+              <div className="grid grid-cols-2 gap-2 pt-2.5 text-[10.5px]">
+                <div className="p-2 rounded-xl bg-white/85 border border-slate-200/80 min-w-0">
+                  <span className="text-slate-400 block text-[9.5px] mb-0.5">报告编号</span>
+                  <span className="font-mono font-bold text-slate-800 truncate block" title={activeReport.reportId}>{activeReport.reportId}</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80">
-                  <span className="text-slate-400 block text-[10px] mb-0.5">质检时间</span>
-                  <span className="font-mono text-slate-700 truncate block">{activeReport.inspectTime}</span>
+                <div className="p-2 rounded-xl bg-white/85 border border-slate-200/80 min-w-0">
+                  <span className="text-slate-400 block text-[9.5px] mb-0.5">质检时间</span>
+                  <span className="font-mono text-slate-700 truncate block" title={activeReport.inspectTime}>{activeReport.inspectTime}</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80">
-                  <span className="text-slate-400 block text-[10px] mb-0.5">巡检人员</span>
-                  <span className="font-semibold text-slate-700 truncate block">{activeReport.operator}</span>
+                <div className="p-2 rounded-xl bg-white/85 border border-slate-200/80 min-w-0">
+                  <span className="text-slate-400 block text-[9.5px] mb-0.5">巡检人员</span>
+                  <span className="font-semibold text-slate-700 truncate block" title={activeReport.operator}>{activeReport.operator}</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80">
-                  <span className="text-slate-400 block text-[10px] mb-0.5">终端设备</span>
-                  <span className="font-semibold text-slate-700 truncate block">{activeReport.deviceName}</span>
+                <div className="p-2 rounded-xl bg-white/85 border border-slate-200/80 min-w-0">
+                  <span className="text-slate-400 block text-[9.5px] mb-0.5">终端设备</span>
+                  <span className="font-semibold text-slate-700 truncate block" title={activeReport.deviceName}>{activeReport.deviceName}</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80">
-                  <span className="text-slate-400 block text-[10px] mb-0.5">检验区域</span>
-                  <span className="text-slate-700 truncate block">{activeReport.location}</span>
+                <div className="p-2 rounded-xl bg-white/85 border border-slate-200/80 min-w-0">
+                  <span className="text-slate-400 block text-[9.5px] mb-0.5">检验区域</span>
+                  <span className="text-slate-700 truncate block" title={activeReport.location}>{activeReport.location}</span>
                 </div>
-                <div className="p-2 rounded-xl bg-white/80 border border-slate-200/80">
-                  <span className="text-slate-400 block text-[10px] mb-0.5">作业时长</span>
+                <div className="p-2 rounded-xl bg-white/85 border border-slate-200/80 min-w-0">
+                  <span className="text-slate-400 block text-[9.5px] mb-0.5">作业时长</span>
                   <span className="font-mono font-bold text-blue-700 truncate block">{activeReport.totalDuration}</span>
                 </div>
               </div>
             </div>
 
             {/* AI Summary Box */}
-            <div className="p-3.5 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-1 shadow-xs">
-              <div className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+            <div className="p-3 rounded-2xl bg-blue-50/60 border border-blue-200 space-y-1 shadow-2xs">
+              <div className="text-[11px] font-bold text-blue-900 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-blue-600" />
                 <span>AI 视频多模态分析总结</span>
               </div>
@@ -822,43 +822,43 @@ export function SOPReportModal({
             </div>
 
             {/* Steps Breakdown Section */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between px-0.5">
-                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                <h4 className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-blue-600" />
                   <span>SOP 规程逐步骤核验详情 ({activeReport.steps.length} 步)</span>
                 </h4>
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-[9.5px] font-mono text-slate-500">
                   工业视觉帧级对照
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {activeReport.steps.map((st) => {
                   const isPassed = st.status === 'passed';
                   const isFailed = st.status === 'failed';
                   return (
                     <div
                       key={st.stepNo}
-                      className={`p-3.5 rounded-2xl border transition-all shadow-xs ${
+                      className={`p-3 rounded-2xl border transition-all shadow-2xs ${
                         isFailed 
                           ? 'bg-rose-50/30 border-rose-300' 
                           : 'bg-white border-slate-200'
                       }`}
                     >
                       {/* Step Header */}
-                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-mono font-bold flex items-center justify-center shadow-xs">
+                      <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-5 h-5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-mono font-bold flex items-center justify-center shadow-2xs flex-shrink-0">
                             {st.stepNo}
                           </span>
-                          <span className="text-xs font-bold text-slate-800">
+                          <span className="text-[11px] font-bold text-slate-800 truncate">
                             {st.title}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border flex items-center gap-1 ${
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <span className={`text-[9.5px] font-mono px-1.5 py-0.5 rounded-md font-bold border flex items-center gap-1 ${
                             isPassed 
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
                               : isFailed
@@ -867,17 +867,17 @@ export function SOPReportModal({
                           }`}>
                             {isPassed ? (
                               <>
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
                                 <span>通过 ({st.confidence}%)</span>
                               </>
                             ) : isFailed ? (
                               <>
-                                <XCircle className="w-3 h-3 text-rose-600" />
+                                <XCircle className="w-2.5 h-2.5 text-rose-600" />
                                 <span>不合规 ({st.confidence}%)</span>
                               </>
                             ) : (
                               <>
-                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <AlertTriangle className="w-2.5 h-2.5 text-amber-600" />
                                 <span>预警 ({st.confidence}%)</span>
                               </>
                             )}
@@ -886,14 +886,14 @@ export function SOPReportModal({
                       </div>
 
                       {/* Standard Requirements */}
-                      <div className="mt-2.5 space-y-2 text-xs">
-                        <div className="text-[11px] text-slate-600 leading-normal bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                      <div className="mt-2 space-y-2 text-xs">
+                        <div className="text-[10.5px] text-slate-600 leading-normal bg-slate-50 p-2 rounded-xl border border-slate-200">
                           <strong className="text-slate-700 block mb-0.5">SOP 规程标准：</strong>
                           {st.sopStandard}
                         </div>
 
                         {/* AI Detection Result Box */}
-                        <div className={`p-2.5 rounded-xl border leading-normal text-[11px] ${
+                        <div className={`p-2 rounded-xl border leading-normal text-[10.5px] ${
                           isFailed 
                             ? 'bg-rose-50 border-rose-200 text-rose-800' 
                             : 'bg-blue-50/60 border-blue-200 text-slate-800'
@@ -909,7 +909,7 @@ export function SOPReportModal({
 
                         {/* Snapshot Image */}
                         {st.snapshotUrl && (
-                          <div className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
+                          <div className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
                             <img
                               src={st.snapshotUrl}
                               alt={st.title}
@@ -928,7 +928,7 @@ export function SOPReportModal({
 
                         {/* Step Notes */}
                         {st.notes && (
-                          <div className="text-[10px] text-slate-500 font-mono flex items-center gap-1.5 pt-0.5">
+                          <div className="text-[9.5px] text-slate-500 font-mono flex items-center gap-1.5 pt-0.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                             <span>{st.notes}</span>
                           </div>
@@ -942,16 +942,16 @@ export function SOPReportModal({
 
             {/* Audio Record Section */}
             {activeReport.audioRecord && (
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
-                <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <h4 className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                   <Mic className="w-3.5 h-3.5 text-emerald-600" />
                   <span>多模态现场语音与音纹分析结果</span>
                 </h4>
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 font-medium">
+                <div className="p-2 rounded-xl bg-white border border-slate-200 text-[11px] text-slate-700 font-medium">
                   {activeReport.audioRecord.transcription}
                 </div>
-                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <div className="flex items-center gap-2 text-[9.5px] font-mono text-slate-500 flex-wrap">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                     音频时长: {activeReport.audioRecord.duration}
                   </span>
                   <span>{activeReport.audioRecord.audioFeatures}</span>
@@ -961,12 +961,12 @@ export function SOPReportModal({
 
             {/* Recommendations Section */}
             {activeReport.recommendations && activeReport.recommendations.length > 0 && (
-              <div className="p-3.5 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-2">
-                <h4 className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+              <div className="p-3 rounded-2xl bg-amber-50/50 border border-amber-200 space-y-1.5">
+                <h4 className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5 text-amber-600" />
                   <span>AI 安监 Copilot 建议与整改处置要求</span>
                 </h4>
-                <ul className="space-y-1.5 text-[11px] text-slate-700">
+                <ul className="space-y-1 text-[10.5px] text-slate-700">
                   {activeReport.recommendations.map((rec, rIdx) => (
                     <li key={rIdx} className="flex items-start gap-1.5">
                       <span className="text-amber-500 font-bold">•</span>
@@ -979,26 +979,26 @@ export function SOPReportModal({
           </div>
 
           {/* Modal Footer */}
-          <div className="px-4 sm:px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between sticky bottom-0 z-20 backdrop-blur-xl">
-            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono truncate mr-2">
+          <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between sticky bottom-0 z-20 backdrop-blur-xl">
+            <div className="flex items-center gap-1 text-[9.5px] text-slate-500 font-mono truncate mr-2">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-              <span className="truncate">工业 AI 电子核对签章 (已数字存证)</span>
+              <span className="truncate">电子核对签章存证</span>
             </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1.5 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => handleDownloadReport(activeReport)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-bold flex items-center gap-1 shadow-2xs shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>下载 HTML 报告</span>
+                <Download className="w-3 h-3" />
+                <span>下载报告</span>
               </button>
 
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-[11px] font-bold transition-colors cursor-pointer"
               >
                 关闭
               </button>

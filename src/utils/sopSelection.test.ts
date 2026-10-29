@@ -5,7 +5,12 @@ import {
   getDefaultSopTemplateForClip,
   resolveCurrentExecutingSopId,
   resolveSopTemplateById,
-  applySingleSopSelection
+  applySingleSopSelection,
+  getStepStartSeconds,
+  getSopTimelineTotalDuration,
+  findActiveStepAtTime,
+  formatPlayerSeconds,
+  getStepStartTimeLabel
 } from './sopSelection';
 
 test('AVAILABLE_SOP_TEMPLATES contains all 4 existing SOP templates', () => {
@@ -55,3 +60,28 @@ test('resolveCurrentExecutingSopId prioritizes user single-selected SOP over his
   assert.equal(resolveCurrentExecutingSopId(clip, updatedMap, records), 'ee');
   assert.equal(resolveSopTemplateById('ee').shortName, '高压电工SOP');
 });
+
+test('SOP step seek helpers calculate start node, duration, start time label, and active step accurately', () => {
+  const steps = [
+    { id: 'ee-s1', stepNo: 1, seekSeconds: 5, timeRange: '10:30:05 - 10:30:22 (17s)' },
+    { id: 'ee-s2', stepNo: 2, seekSeconds: 23, timeRange: '10:30:23 - 10:30:48 (25s)' },
+    { id: 'ee-s3', stepNo: 3, seekSeconds: 49 },
+    { id: 'ee-s4', stepNo: 4, seekSeconds: 76 }
+  ];
+
+  assert.equal(getStepStartSeconds(steps[0], 0), 5);
+  assert.equal(getStepStartSeconds(steps[1], 1), 23);
+  assert.equal(getSopTimelineTotalDuration(steps), 94);
+  assert.equal(formatPlayerSeconds(23), '0:23');
+  assert.equal(formatPlayerSeconds(76), '1:16');
+  assert.equal(getStepStartTimeLabel(steps[0], 0), '10:30:05');
+  assert.equal(getStepStartTimeLabel(steps[1], 1), '10:30:23');
+  assert.equal(getStepStartTimeLabel(steps[2], 2), '0:49');
+
+  assert.equal(findActiveStepAtTime(steps, 5)?.id, 'ee-s1');
+  assert.equal(findActiveStepAtTime(steps, 23)?.id, 'ee-s2');
+  assert.equal(findActiveStepAtTime(steps, 55)?.id, 'ee-s3');
+  assert.equal(findActiveStepAtTime(steps, 80)?.id, 'ee-s4');
+});
+
+

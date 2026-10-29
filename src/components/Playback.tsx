@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Play, Download, ChevronLeft, ChevronRight,
+  Play, Pause, Volume2, VolumeX, Maximize2, Download, ChevronLeft, ChevronRight,
   Mic, Video, Navigation as NavigationIcon, Image as ImageIcon, 
   Sparkles, BrainCircuit, Clock, CheckCircle2, AlertTriangle, 
   XCircle, ChevronDown, ChevronUp, ShieldCheck, FileCheck, 
@@ -9,8 +9,15 @@ import {
   AlertCircle, Filter, RotateCcw
 } from 'lucide-react';
 import { Device, TimelineEvent, SOPStepItem } from '../types';
-import { mockTimeline } from '../data';
+import { mockTimeline, traditionalClips } from '../data';
 import { SOPReportModal } from './SOPReportModal';
+import {
+  getStepStartSeconds,
+  getSopTimelineTotalDuration,
+  findActiveStepAtTime,
+  formatPlayerSeconds,
+  getStepStartTimeLabel
+} from '../utils/sopSelection';
 
 interface PlaybackProps {
   device: Device;
@@ -51,6 +58,14 @@ export function Playback({
   const [currentDay, setCurrentDay] = useState<string>('今日');
   const [showDayDropdown, setShowDayDropdown] = useState<boolean>(false);
 
+  // Video player states for SOP Step Detail View
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playerCardRef = useRef<HTMLDivElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(true);
+  const [playerCurrentTime, setPlayerCurrentTime] = useState<number>(0);
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+
   const handleGoToAiSearch = (searchQuery: string) => {
     if (onNavigateToSearch) {
       onNavigateToSearch(searchQuery);
@@ -77,6 +92,97 @@ export function Playback({
   const activeEvent = selectedEventId 
     ? (mockTimeline.find(e => e.id === selectedEventId) || mockTimeline[0])
     : null;
+
+  const activeSteps = activeEvent?.steps || [];
+  const timelineTotalDuration = getSopTimelineTotalDuration(activeSteps);
+  const currentActiveStep = findActiveStepAtTime(activeSteps, playerCurrentTime);
+
+  // Resolve matching video URL for activeEvent
+  const activeVideoUrl = React.useMemo(() => {
+    if (!activeEvent) return traditionalClips[0].videoUrl;
+    if (activeEvent.id === 't1' || activeEvent.id === 't3') {
+      return traditionalClips.find(c => c.id === 'tc3')?.videoUrl || traditionalClips[0].videoUrl;
+    }
+    if (activeEvent.id === 't2') {
+      return traditionalClips.find(c => c.id === 'tc1')?.videoUrl || traditionalClips[0].videoUrl;
+    }
+    if (activeEvent.id === 't4') {
+      return traditionalClips.find(c => c.id === 'tc5')?.videoUrl || traditionalClips[0].videoUrl;
+    }
+    return traditionalClips[0].videoUrl;
+  }, [activeEvent]);
+
+  // Initialize player position to first step start node when opening an event detail
+  useEffect(() => {
+    if (activeEvent && activeEvent.steps && activeEvent.steps.length > 0) {
+      const firstStep = activeEvent.steps[0];
+      const startSec = getStepStartSeconds(firstStep, 0);
+      setPlayerCurrentTime(startSec);
+      setActiveStepId(firstStep.id);
+      setIsPlaying(false);
+    }
+  }, [selectedEventId]);
+
+  // Advance virtual timeline smoothly while playing
+  useEffect(() => {
+    if (!isPlaying || !activeEvent) return;
+    const timer = window.setInterval(() => {
+      setPlayerCurrentTime((prev) => {
+        const next = prev + 1;
+        if (next >= timelineTotalDuration) {
+          setIsPlaying(false);
+          return 0;
+        }
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [isPlaying, activeEvent, timelineTotalDuration]);
+
+  // Sync activeStepId as timeline progresses
+  useEffect(() => {
+    if (currentActiveStep && currentActiveStep.id !== activeStepId) {
+      setActiveStepId(currentActiveStep.id);
+    }
+  }, [currentActiveStep, activeStepId]);
+
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (isPlaying) {
+      v?.pause();
+      setIsPlaying(false);
+    } else {
+      v?.play().catch(() => {});
+      setIsPlaying(true);
+    }
+  };
+
+  const handleSeekToSeconds = (targetSeconds: number, autoPlay = true) => {
+    const clamped = Math.max(0, Math.min(timelineTotalDuration, targetSeconds));
+    setPlayerCurrentTime(clamped);
+    const matchedStep = findActiveStepAtTime(activeSteps, clamped);
+    if (matchedStep) {
+      setActiveStepId(matchedStep.id);
+    }
+    const v = videoRef.current;
+    if (v) {
+      if (v.duration && !Number.isNaN(v.duration) && v.duration > 0) {
+        v.currentTime = (clamped / timelineTotalDuration) * v.duration;
+      }
+      if (autoPlay) {
+        v.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    } else if (autoPlay) {
+      setIsPlaying(true);
+    }
+  };
+
+  const handleSeekToStep = (step: SOPStepItem, index: number) => {
+    const startSec = getStepStartSeconds(step, index);
+    setActiveStepId(step.id);
+    handleSeekToSeconds(startSec, true);
+  };
 
   // 方案二：按“视频片段”聚合展示多次 SOP 分析结果
   const groupedSopClips: GroupedSopClip[] = [
@@ -147,7 +253,7 @@ export function Playback({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      className="flex flex-col pb-28 relative"
+      className={`flex flex-col relative ${selectedEventId ? 'h-[calc(100vh-88px)] overflow-hidden' : 'pb-28'}`}
     >
       {/* ========================================================================= */}
       {/* 视图一：SOP 分析结果列表 (按视频片段聚合多次 SOP 分析) */}
@@ -263,22 +369,6 @@ export function Playback({
                 </div>
               )}
             </div>
-
-            {/* Standalone SOP Task Report Download Button */}
-            <button
-              onClick={() => {
-                setSopInitialTaskId('ee');
-                setSopReportModalOpen(true);
-              }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full text-xs font-semibold shadow-sm shadow-blue-600/20 active:scale-95 transition-all cursor-pointer"
-              title="下载 SOP 质检报告"
-            >
-              <Download className="w-3.5 h-3.5 text-blue-100" />
-              <span>下载质检报告</span>
-              <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-mono">
-                全部SOP
-              </span>
-            </button>
           </div>
 
           {/* Filter Indicator Banner */}
@@ -436,62 +526,213 @@ export function Playback({
           initial={{ opacity: 0, x: 10 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -10 }}
-          className="flex flex-col gap-4"
+          className="flex flex-col h-full overflow-hidden gap-2.5"
         >
-          {/* Top Back Header Bar */}
-          <div className="flex items-center justify-between pt-1 pb-2 border-b border-slate-200">
-            <button
-              onClick={() => setSelectedEventId(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-xs group"
-            >
-              <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform text-blue-600" />
-              <span>返回</span>
-            </button>
+          {/* Fixed Top Region: Back Header + Video Player + SOP Title Row */}
+          <div id="sop-detail-fixed-top" className="flex flex-col gap-2.5 flex-shrink-0 pb-1.5 border-b border-slate-100">
+            {/* Top Back Header Bar */}
+            <div className="flex items-center justify-between pt-0.5 pb-1.5 border-b border-slate-200">
+              <button
+                onClick={() => {
+                  videoRef.current?.pause();
+                  setIsPlaying(false);
+                  setSelectedEventId(null);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 hover:border-slate-300 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-xs group"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform text-blue-600" />
+                <span>返回</span>
+              </button>
 
-            <button
-              onClick={() => {
-                setSopInitialTaskId(activeEvent.sopId || 'ee');
-                setSopReportModalOpen(true);
-              }}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold transition-all shadow-xs active:scale-95 cursor-pointer"
+              <button
+                onClick={() => {
+                  setSopInitialTaskId(activeEvent.sopId || 'ee');
+                  setSopReportModalOpen(true);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-semibold transition-all shadow-xs active:scale-95 cursor-pointer"
+              >
+                <FileCheck className="w-3.5 h-3.5 text-blue-600" />
+                <span>任务质检报告</span>
+              </button>
+            </div>
+
+            {/* Top Video Playback Card with Step Node Seeking */}
+            <div
+              ref={playerCardRef}
+              className="bg-white border border-slate-200 rounded-2xl p-2 shadow-xs"
             >
-              <FileCheck className="w-3.5 h-3.5 text-blue-600" />
-              <span>任务质检报告</span>
-            </button>
+            <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-950 border border-slate-900/10 group">
+              <video
+                ref={videoRef}
+                src={activeVideoUrl}
+                poster={activeEvent.imageUrl}
+                muted={isMuted}
+                loop
+                playsInline
+                className="w-full h-full object-cover"
+              />
+
+              {/* Subtle gradient for bottom controls readability */}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/30 pointer-events-none" />
+
+              {/* Active Step Node Indicator Overlay */}
+              {currentActiveStep && (
+                <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none">
+                  <span className="px-2.5 py-1 rounded-lg bg-slate-950/75 backdrop-blur-md border border-white/15 text-[10px] font-medium text-white flex items-center gap-1.5 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                    <span className="text-slate-100 font-semibold truncate max-w-[195px]">
+                      {currentActiveStep.title}
+                    </span>
+                    <span className="font-mono text-blue-200 ml-0.5">
+                      ({formatPlayerSeconds(getStepStartSeconds(currentActiveStep, currentActiveStep.stepNo - 1))})
+                    </span>
+                  </span>
+                </div>
+              )}
+
+              {/* Center Play Button Overlay when paused */}
+              {!isPlaying && (
+                <div
+                  onClick={togglePlay}
+                  className="absolute inset-0 flex items-center justify-center bg-slate-950/20 backdrop-blur-[1px] cursor-pointer z-10 transition-all"
+                >
+                  <div className="w-12 h-12 rounded-full bg-blue-600/95 text-white flex items-center justify-center shadow-xl hover:scale-105 hover:bg-blue-600 transition-all">
+                    <Play className="w-5 h-5 text-white ml-0.5 fill-white" />
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Bottom Media Controls with Step Markers */}
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-slate-950 via-slate-950/85 to-transparent flex items-center px-3 justify-between z-10 select-none">
+                <div className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={togglePlay}
+                    className="p-1 text-slate-200 hover:text-white transition-colors cursor-pointer"
+                    title={isPlaying ? '暂停' : '播放'}
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4 ml-0.5" />
+                    )}
+                  </button>
+                  <span
+                    id="sop-detail-player-time"
+                    className="text-[11px] font-mono text-slate-200 ml-2 min-w-[68px]"
+                  >
+                    {formatPlayerSeconds(playerCurrentTime)} / {formatPlayerSeconds(timelineTotalDuration)}
+                  </span>
+                </div>
+
+                {/* Progress Seek Bar with Step Start Node Dots */}
+                <div className="relative flex-1 mx-2.5 flex items-center">
+                  <input
+                    type="range"
+                    min="0"
+                    max={timelineTotalDuration}
+                    value={playerCurrentTime}
+                    onChange={(e) => handleSeekToSeconds(parseFloat(e.target.value), false)}
+                    className="w-full h-1 bg-white/25 hover:bg-white/35 rounded-lg appearance-none cursor-pointer accent-blue-500 transition-all outline-none relative z-10"
+                    style={{
+                      background: `linear-gradient(to right, #2563eb 0%, #2563eb ${((playerCurrentTime / timelineTotalDuration) * 100)}%, rgba(255, 255, 255, 0.25) ${((playerCurrentTime / timelineTotalDuration) * 100)}%, rgba(255, 255, 255, 0.25) 100%)`
+                    }}
+                  />
+                  {/* Step node markers on timeline bar */}
+                  <div className="absolute inset-x-0 pointer-events-none flex items-center">
+                    {activeSteps.map((st, idx) => {
+                      const startSec = getStepStartSeconds(st, idx);
+                      const leftPct = Math.min(96, Math.max(2, (startSec / timelineTotalDuration) * 100));
+                      return (
+                        <span
+                          key={st.id}
+                          style={{ left: `${leftPct}%` }}
+                          className={`absolute -translate-x-1/2 w-2 h-2 rounded-full border border-white/80 shadow-xs ${
+                            st.status === 'failed'
+                              ? 'bg-rose-500'
+                              : st.status === 'warning'
+                              ? 'bg-amber-400'
+                              : 'bg-emerald-400'
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsMuted(!isMuted)}
+                    className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    title={isMuted ? '取消静音' : '静音'}
+                  >
+                    {isMuted ? (
+                      <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (videoRef.current?.requestFullscreen) {
+                        videoRef.current.requestFullscreen().catch(() => {});
+                      }
+                    }}
+                    className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    title="全屏"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            </div>
+
+            {/* Standalone SOP Badge Row */}
+            <div className="flex items-center justify-between px-0.5">
+              <span className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>{activeEvent.sopName || 'SOP 规程'}</span>
+              </span>
+
+              <span className="text-[11px] font-mono text-slate-500">
+                共 {(activeEvent.steps || []).length} 个规程核验步
+              </span>
+            </div>
           </div>
 
-          {/* Standalone SOP Badge Row */}
-          <div className="flex items-center justify-between px-0.5">
-            <span className="px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold flex items-center gap-1.5 shadow-xs">
-              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-              <span>{activeEvent.sopName || 'SOP 规程'}</span>
-            </span>
-
-            <span className="text-[11px] font-mono text-slate-500">
-              共 {(activeEvent.steps || []).length} 个规程核验步
-            </span>
-          </div>
-
-          {/* 逐步骤垂直时间轴 (Vertical Step Timeline for this SOP) */}
-          <div className="relative border-l-2 border-blue-400 ml-6 md:ml-8 pl-5 md:pl-7 py-2 flex flex-col gap-6">
+          {/* Independently Scrollable Bottom Region: Step-by-Step Process Records */}
+          <div id="sop-steps-scroll-container" className="flex-1 overflow-y-auto pr-1 pt-1 pb-16">
+            {/* 逐步骤垂直时间轴 (Vertical Step Timeline for this SOP) */}
+            <div className="relative pl-2 pr-0.5 py-2 flex flex-col gap-5">
+              {/* Centered Vertical Axis Line aligned with 26px circle center (8px pl-2 + 13px radius = 21px) */}
+              <div className="absolute left-[21px] top-3 bottom-3 w-[2px] -translate-x-1/2 bg-blue-400 pointer-events-none" />
             {(activeEvent.steps || []).map((step, sIdx) => {
               const isStepPassed = step.status === 'passed';
               const isStepFailed = step.status === 'failed';
               const isStepWarning = step.status === 'warning';
               const stepZhNum = STEP_NO_ZH[step.stepNo - 1] || step.stepNo;
+              const stepStartSeconds = getStepStartSeconds(step, sIdx);
+              const isCurrentPlayingStep = activeStepId === step.id;
 
               return (
                 <motion.div
                   key={step.id}
+                  id={`sop-step-node-${step.stepNo}`}
                   initial={{ opacity: 0, x: -6 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: sIdx * 0.04 }}
-                  className="relative flex flex-col gap-2 group/step"
+                  onClick={() => handleSeekToStep(step, sIdx)}
+                  className="relative flex flex-col gap-2 group/step cursor-pointer"
                 >
                   {/* Floating Milestone Badge on Timeline */}
-                  <div className="flex items-center gap-2 -ml-[31px] md:-ml-[39px] z-20 flex-wrap">
+                  <div className="flex items-center gap-2 z-20 flex-wrap">
                     {/* Circle Milestone Number */}
-                    <div className={`w-6.5 h-6.5 rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm ring-4 ring-white flex-shrink-0 ${
+                    <div className={`w-[26px] h-[26px] rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm ring-4 ring-white flex-shrink-0 transition-transform ${
+                      isCurrentPlayingStep ? 'scale-110 ' : ''
+                    }${
                       isStepPassed 
                         ? 'bg-emerald-600 text-white shadow-emerald-500/20'
                         : isStepFailed
@@ -502,33 +743,37 @@ export function Playback({
                     </div>
 
                     {/* Step Title Pill */}
-                    <div className={`px-3 py-1 rounded-full text-white text-[11px] font-bold shadow-sm flex items-center gap-1.5 whitespace-nowrap border ${
+                    <div className={`px-3 py-1 rounded-full text-white text-[11px] font-bold shadow-sm flex items-center gap-1.5 whitespace-nowrap border transition-all ${
                       isStepFailed
                         ? 'bg-gradient-to-r from-rose-600 to-red-600 border-rose-400'
                         : isStepWarning
                         ? 'bg-gradient-to-r from-amber-500 to-amber-600 border-amber-400'
                         : 'bg-gradient-to-r from-blue-600 to-indigo-600 border-blue-400'
                     }`}>
-                      <Sparkles className="w-3 h-3 text-white/90" />
-                      <span>步骤{stepZhNum}：{step.title}</span>
+                      <Play className="w-2.5 h-2.5 text-white fill-white" />
+                      <span>{step.title}</span>
                     </div>
 
-                    {/* Step Time Range */}
-                    {step.timeRange && (
-                      <span className="text-[10px] font-mono text-slate-500 flex items-center gap-1 ml-auto">
-                        <Clock className="w-3 h-3 text-slate-400" />
-                        {step.timeRange}
-                      </span>
-                    )}
+                    {/* Step Start Time & Jump Node Pill */}
+                    <span className={`text-[10px] font-mono flex items-center gap-1 ml-auto px-2 py-0.5 rounded-full border transition-colors ${
+                      isCurrentPlayingStep
+                        ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-2xs'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 group-hover/step:border-blue-300 group-hover/step:text-blue-600'
+                    }`}>
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>{getStepStartTimeLabel(step, sIdx)}</span>
+                    </span>
                   </div>
 
                   {/* Step Detail Card */}
-                  <div className={`p-3.5 rounded-2xl border transition-all ${
-                    isStepFailed
-                      ? 'bg-rose-50/50 border-rose-200'
+                  <div className={`ml-[34px] p-3.5 rounded-2xl border transition-all ${
+                    isCurrentPlayingStep
+                      ? 'ring-2 ring-blue-500/35 border-blue-400 bg-blue-50/20 shadow-sm'
+                      : isStepFailed
+                      ? 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
                       : isStepWarning
-                      ? 'bg-amber-50/50 border-amber-200'
-                      : 'bg-white border-slate-200 shadow-xs'
+                      ? 'bg-amber-50/50 border-amber-200 hover:border-amber-300'
+                      : 'bg-white border-slate-200 hover:border-blue-300 shadow-xs'
                   }`}>
                     {/* Verification Result Badge */}
                     <div className="flex items-center justify-between gap-2 flex-wrap mb-2.5 pb-2 border-b border-slate-100">
@@ -547,12 +792,19 @@ export function Playback({
                         </span>
                       </span>
 
-                      {step.sopStandard && (
-                        <span className="text-[9px] text-slate-500 font-mono truncate max-w-xs" title={step.sopStandard}>
-                          规程标准: {step.sopStandard}
-                        </span>
-                      )}
+                      <span className={`text-[10px] font-mono font-semibold flex items-center gap-1 ${
+                        isCurrentPlayingStep ? 'text-blue-600' : 'text-slate-400 group-hover/step:text-blue-600'
+                      }`}>
+                        <Play className="w-2.5 h-2.5 fill-current" />
+                        <span>{isCurrentPlayingStep ? `正在播放节点 (${formatPlayerSeconds(stepStartSeconds)})` : `跳转至 ${formatPlayerSeconds(stepStartSeconds)}`}</span>
+                      </span>
                     </div>
+
+                    {step.sopStandard && (
+                      <div className="text-[10px] text-slate-500 font-mono mb-2 leading-relaxed">
+                        规程标准: {step.sopStandard}
+                      </div>
+                    )}
 
                     {/* AI Verification Evidence */}
                     <div className={`p-2.5 rounded-xl border ${
@@ -593,17 +845,22 @@ export function Playback({
                 </motion.div>
               );
             })}
-          </div>
+            </div>
 
-          {/* Bottom Back Button */}
-          <div className="pt-3 pb-6 flex justify-center">
-            <button
-              onClick={() => setSelectedEventId(null)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4 text-blue-600" />
-              <span>返回全部 SOP 分析结果列表</span>
-            </button>
+            {/* Bottom Back Button */}
+            <div className="pt-3 pb-4 flex justify-center">
+              <button
+                onClick={() => {
+                  videoRef.current?.pause();
+                  setIsPlaying(false);
+                  setSelectedEventId(null);
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+              >
+                <ArrowLeft className="w-4 h-4 text-blue-600" />
+                <span>返回全部 SOP 分析结果列表</span>
+              </button>
+            </div>
           </div>
         </motion.div>
       )}

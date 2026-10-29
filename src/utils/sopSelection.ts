@@ -109,3 +109,63 @@ export function applySingleSopSelection(
     [clipId]: selectedSopId
   };
 }
+
+export function getStepStartSeconds(
+  step: { seekSeconds?: number; stepNo: number },
+  index: number
+): number {
+  if (typeof step.seekSeconds === 'number' && !Number.isNaN(step.seekSeconds)) {
+    return Math.max(0, step.seekSeconds);
+  }
+  return Math.max(0, index * 15);
+}
+
+export function getSopTimelineTotalDuration(
+  steps: Array<{ seekSeconds?: number; stepNo: number }>
+): number {
+  if (!steps || steps.length === 0) return 34;
+  const maxStart = steps.reduce((acc, st, idx) => {
+    const s = getStepStartSeconds(st, idx);
+    return s > acc ? s : acc;
+  }, 0);
+  return Math.max(34, maxStart + 18);
+}
+
+export function findActiveStepAtTime<T extends { seekSeconds?: number; stepNo: number }>(
+  steps: T[],
+  currentTimeSec: number
+): T | null {
+  if (!steps || steps.length === 0) return null;
+  let active = steps[0];
+  for (let i = 0; i < steps.length; i++) {
+    const startSec = getStepStartSeconds(steps[i], i);
+    if (currentTimeSec >= startSec) {
+      active = steps[i];
+    } else {
+      break;
+    }
+  }
+  return active;
+}
+
+export function formatPlayerSeconds(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds || 0));
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+export function getStepStartTimeLabel(
+  step: { timeRange?: string; seekSeconds?: number; stepNo: number },
+  index: number
+): string {
+  if (step.timeRange && step.timeRange.trim().length > 0) {
+    const startPart = step.timeRange.split('-')[0]?.trim();
+    if (startPart) {
+      return startPart;
+    }
+  }
+  return formatPlayerSeconds(getStepStartSeconds(step, index));
+}
+
+
