@@ -6,23 +6,25 @@ import {
   ShieldAlert, Layers, RefreshCw, AlertCircle
 } from 'lucide-react';
 import { Device, TraditionalClip } from '../types';
+import { SOPAnalysisTemplate } from '../utils/sopSelection';
 
 interface LiveRecordingOverlayProps {
   device: Device;
   isOpen: boolean;
   onClose: () => void;
   onStopAndSave: (durationSecs: number) => void;
+  sopTemplate?: SOPAnalysisTemplate;
 }
 
 export function LiveRecordingOverlay({ 
   device, 
   isOpen, 
   onClose, 
-  onStopAndSave 
+  onStopAndSave,
+  sopTemplate
 }: LiveRecordingOverlayProps) {
   const [duration, setDuration] = useState<number>(0);
   const [isMuted, setIsMuted] = useState<boolean>(true);
-  const [activeSopTemplate, setActiveSopTemplate] = useState<'fire' | 'electric' | 'kitchen'>('fire');
   const rtcVideoRef = useRef<HTMLVideoElement>(null);
 
   // Auto increment duration when open
@@ -166,13 +168,15 @@ export function LiveRecordingOverlay({
       {/* ========================================================================= */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 bg-[#f8fafc] relative">
         
-        {/* Top SOP Title Chip (Faithfully matching user screenshot) */}
+        {/* Top SOP Title Chip */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-xs font-bold shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-            <span>园区消防通道 SOP</span>
+            <span>{sopTemplate ? sopTemplate.name : '园区消防通道 SOP'}</span>
           </div>
-          <span className="text-xs text-slate-500 font-medium">共 3 个规程核验步</span>
+          <span className="text-xs text-slate-500 font-medium">
+            共 {sopTemplate ? sopTemplate.stepsCount : 3} 个规程核验步
+          </span>
         </div>
 
         {/* Continuous Vertical Timeline Container */}

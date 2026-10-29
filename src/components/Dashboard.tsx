@@ -195,9 +195,20 @@ export function Dashboard({
   const [clipExecutionHistory, setClipExecutionHistory] = useState<Record<string, SOPExecutionRecord[]>>(initialClipExecutionHistory);
   const [showExecutionHistoryModal, setShowExecutionHistoryModal] = useState<boolean>(false);
   const [clipExecutingSopMap, setClipExecutingSopMap] = useState<Record<string, 'ck' | 'ee' | 'sf' | 'mf'>>({});
+  const [recordingSopId, setRecordingSopId] = useState<'ck' | 'ee' | 'sf' | 'mf'>(() =>
+    getDefaultSopTemplateHelper({ description: '' }, device).id
+  );
+  const [sopModalMode, setSopModalMode] = useState<'recording' | 'reanalyze'>('recording');
   const [isSopSelectModalOpen, setIsSopSelectModalOpen] = useState<boolean>(false);
   const [targetClipForAnalysis, setTargetClipForAnalysis] = useState<TraditionalClip | null>(null);
   const [selectedSopTemplateId, setSelectedSopTemplateId] = useState<'ck' | 'ee' | 'sf' | 'mf'>('ck');
+
+  // Sync default recording SOP when switching bound device
+  useEffect(() => {
+    if (device) {
+      setRecordingSopId(getDefaultSopTemplateHelper({ description: '' }, device).id);
+    }
+  }, [device?.id]);
   
   // AI Analyzing in-flight state (正在分析的过程状态展示)
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -217,7 +228,7 @@ export function Dashboard({
     ? currentClipHistory.length 
     : (currentClipRecords.length || 0);
 
-  // 当前执行 SOP 计算：优先使用用户为该片段选择的 SOP，其次使用首个已分析的 SOP，最后回退至根据片段特征推荐的 SOP
+  // 当前回看视频关联的 SOP（用于顶部重新分析）
   const currentExecutingSopId: 'ck' | 'ee' | 'sf' | 'mf' = resolveCurrentExecutingSopId(
     activeTraditionalClip,
     clipExecutingSopMap,
@@ -226,6 +237,9 @@ export function Dashboard({
   );
 
   const currentExecutingTemplate = resolveSopTemplateById(currentExecutingSopId);
+
+  // 底部悬浮栏“当前执行SOP”（用于录制新片段）
+  const recordingSopTemplate = resolveSopTemplateById(recordingSopId);
 
   const matchedRecordForCurrentSop = 
     currentClipRecords.find(r => r.sopTaskId === currentExecutingSopId);
@@ -372,7 +386,7 @@ export function Dashboard({
       setRecordingDuration(0);
       setIsPlaying(true);
       setRecordingToast({
-        message: `已向终端 [${device.name}] 下发指令：开启第一视角高清录制与实时 WebRTC 推流，正在运行在线多模态质检...`,
+        message: `已向终端 [${device.name}] 下发指令：按「${recordingSopTemplate.shortName}」开启第一视角录制与实时多模态质检...`,
         type: 'start'
       });
       setTimeout(() => setRecordingToast(null), 3500);
@@ -396,6 +410,7 @@ export function Dashboard({
     const timeLabel = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const seqNo = now.getSeconds().toString().padStart(2, '0');
     const newClipId = `tc_rec_${Date.now()}`;
+    const activeRecTemplate = recordingSopTemplate;
     
     const newClip: TraditionalClip = {
       id: newClipId,
@@ -408,14 +423,13 @@ export function Dashboard({
       imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?q=80&w=800&auto=format&fit=crop',
       videoUrl: 'https://assets.mixkit.co/videos/preview/mixkit-construction-worker-working-with-wires-41619-large.mp4',
       baseSeconds: now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds(),
-      description: `${device?.location || '现场'} - ${device?.name || '智能工牌'} 消防通道巡检录制片段`
+      description: `${device?.location || '现场'} - ${device?.name || '智能工牌'} ${activeRecTemplate.shortName}录制片段`
     };
     
     // 1. Immediately insert at the top of the list
     setAllClips(prev => [newClip, ...prev]);
     setSelectedTraditionalClipId(newClipId);
-
-    const defaultTemplate = AVAILABLE_SOP_TEMPLATES.find(t => t.id === 'sf') || getDefaultSopTemplateForClip(newClip);
+    setClipExecutingSopMap(prev => applySingleSopSelection(prev, newClipId, activeRecTemplate.id));
 
     // 2. Set initial upload state (18%)
     setClipUploadStatuses(prev => ({
@@ -443,12 +457,12 @@ export function Dashboard({
         ...prev,
         [newClipId]: { status: 'completed', progress: 100 }
       }));
-      // Auto trigger SOP Analysis using default SOP template once video upload finishes
-      runSopAnalysis(newClip, defaultTemplate);
+      // Auto trigger SOP Analysis using the selected recording SOP template once video upload finishes
+      runSopAnalysis(newClip, activeRecTemplate);
     }, 1200);
     
     setRecordingToast({
-      message: `终端已停止录制，已在列表生成片段 [${timeLabel}:${seqNo}]，正在上传并自动归档「${defaultTemplate.shortName}」多模态质检结果`,
+      message: `终端已停止录制，已在列表生成片段 [${timeLabel}:${seqNo}]，正在上传并自动归档「${activeRecTemplate.shortName}」多模态质检结果`,
       type: 'stop'
     });
     setTimeout(() => setRecordingToast(null), 4000);
@@ -514,26 +528,40 @@ export function Dashboard({
     }
   };
 
-  // Open unified SOP single-select modal for a clip
+  // Open SOP selector for the bottom floating "Current Executing SOP" (for new recording)
+  const handleOpenRecordingSopSelector = () => {
+    setSopModalMode('recording');
+    setTargetClipForAnalysis(activeTraditionalClip);
+    setSelectedSopTemplateId(recordingSopId);
+    setIsSopSelectModalOpen(true);
+  };
+
+  // Open SOP selector for re-analyzing a historical clip
   const handleOpenSopSelector = (clip?: TraditionalClip) => {
     const target = clip || activeTraditionalClip;
+    setSopModalMode('reanalyze');
     setTargetClipForAnalysis(target);
     const activeSopId = resolveCurrentExecutingSopId(target, clipExecutingSopMap, clipSopRecords, device);
     setSelectedSopTemplateId(activeSopId);
     setIsSopSelectModalOpen(true);
   };
 
-  // Confirm single-selected SOP from modal, update current executing SOP, and trigger analysis
+  // Confirm single-selected SOP from modal
   const handleStartSopAnalysis = () => {
-    if (!targetClipForAnalysis) return;
     const template = resolveSopTemplateById(selectedSopTemplateId);
+    if (sopModalMode === 'recording') {
+      setRecordingSopId(selectedSopTemplateId);
+      setIsSopSelectModalOpen(false);
+      return;
+    }
+    if (!targetClipForAnalysis) return;
     setClipExecutingSopMap(prev => applySingleSopSelection(prev, targetClipForAnalysis.id, selectedSopTemplateId));
     setIsSopSelectModalOpen(false);
     runSopAnalysis(targetClipForAnalysis, template);
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-20">
       {/* 0. 未绑定设备时的历史回看提示条 */}
       {!device && (
         <div className="px-3.5 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex items-center gap-2 text-xs text-amber-900 shadow-xs animate-fade-in">
@@ -855,40 +883,6 @@ export function Dashboard({
           </div>
         </div>
 
-        {/* 当前执行 SOP 轻量信息与切换栏 (无输入框外边框纯文本 + 轻量切换图标与右箭头按钮) */}
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs select-none gap-2 min-h-[42px]">
-          <span
-            className="text-[11px] font-bold text-slate-700 font-mono px-2 py-1 rounded-lg bg-white border border-slate-200 flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 shadow-2xs"
-          >
-            <Layers className="w-3.5 h-3.5 text-blue-600" />
-            <span>当前执行SOP</span>
-          </span>
-
-          {/* 中间无边框纯文本展示 SOP 名称，右侧仅保留轻量切换图标与右箭头 */}
-          <button
-            type="button"
-            id="current-executing-sop-select"
-            onClick={() => handleOpenSopSelector(activeTraditionalClip)}
-            aria-haspopup="dialog"
-            aria-expanded={isSopSelectModalOpen}
-            aria-label={`切换当前执行SOP，当前为 ${currentExecutingTemplate.name}`}
-            className="flex-1 min-w-0 flex items-center justify-between gap-2 pl-1 pr-0.5 py-1 text-left cursor-pointer group outline-none rounded-lg focus-visible:ring-2 focus-visible:ring-blue-200 transition-colors"
-            title="点击切换当前视频关联执行的 SOP 规程"
-          >
-            <div className="flex items-center gap-1.5 min-w-0 flex-1">
-              <span className="flex-shrink-0 text-xs">{currentExecutingTemplate.icon}</span>
-              <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors truncate">
-                {currentExecutingTemplate.name}
-              </span>
-            </div>
-
-            <span className="flex items-center gap-0.5 text-slate-400 group-hover:text-blue-600 active:scale-95 transition-all flex-shrink-0 pl-1">
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-              <ChevronRight className="w-3.5 h-3.5" />
-            </span>
-          </button>
-        </div>
-
         {/* 当前视频片段执行状态提醒栏 (纯文字轻量展示 + 数字蓝色高亮 + 仅已执行时展示查看跳转) */}
         <div className="flex items-center justify-between px-1 py-0.5 text-xs select-none min-h-[20px]">
           <div className="flex items-center min-w-0">
@@ -1181,7 +1175,7 @@ export function Dashboard({
       {/* 3. 统一 SOP 列表单选弹窗 (移动端尺寸，严格限制在 max-w-md 手机页面范围内) */}
       {/* ========================================================================= */}
       <AnimatePresence>
-        {isSopSelectModalOpen && targetClipForAnalysis && (
+        {isSopSelectModalOpen && (
           <div 
             className="fixed inset-0 max-w-md mx-auto bg-slate-900/45 backdrop-blur-[2px] z-50 flex items-center justify-center px-4 py-4"
             onClick={() => setIsSopSelectModalOpen(false)}
@@ -1206,14 +1200,16 @@ export function Dashboard({
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <h3 id="sop-single-select-modal-title" className="text-xs font-bold text-slate-800 truncate">
-                        切换 / 选择执行 SOP 规程
+                        {sopModalMode === 'recording' ? '切换当前执行 SOP 规程' : '选择 SOP 规程重新分析'}
                       </h3>
                       <span className="px-1.5 py-0.2 rounded bg-blue-50 border border-blue-200 text-[9px] font-bold text-blue-600 flex-shrink-0">
                         单选
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 mt-0.5 truncate">
-                      从已有 SOP 列表中单选一个规程进行切换分析
+                      {sopModalMode === 'recording'
+                        ? '选定后，右侧「录制新片段」将按此 SOP 执行实时核验'
+                        : '从已有 SOP 列表中单选一个规程对本片段重新分析'}
                     </p>
                   </div>
                 </div>
@@ -1236,8 +1232,8 @@ export function Dashboard({
               >
                 {AVAILABLE_SOP_TEMPLATES.map((tmpl) => {
                   const isSelected = selectedSopTemplateId === tmpl.id;
-                  const targetRecords = clipSopRecords[targetClipForAnalysis.id] || [];
-                  const isAlreadyAnalyzed = targetRecords.some(r => r.sopTaskId === tmpl.id);
+                  const targetRecords = targetClipForAnalysis ? (clipSopRecords[targetClipForAnalysis.id] || []) : [];
+                  const isAlreadyAnalyzed = sopModalMode === 'reanalyze' && targetRecords.some(r => r.sopTaskId === tmpl.id);
                   
                   return (
                     <button
@@ -1307,7 +1303,7 @@ export function Dashboard({
                   className="w-2/3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>确认选择并分析</span>
+                  <span>{sopModalMode === 'recording' ? '确认设为当前执行 SOP' : '确认选择并分析'}</span>
                 </button>
               </div>
             </motion.div>
@@ -1470,43 +1466,47 @@ export function Dashboard({
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* 4. 全局悬浮录制中枢 (Global Floating Record Hub / FAB) */}
-      {/* ========================================================================= */}
-      {/* 4. 悬浮工牌录制新片段控制面板 (FLOATING ACTION BUTTON: 仅有设备绑定时显示)      */}
+      {/* 4. 底部一体式悬浮控制条：当前执行SOP + 录制新片段 (方案A)                      */}
       {/* ========================================================================= */}
       {device && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md pointer-events-none px-4 z-40 flex justify-end">
-          <div className="pointer-events-auto">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 w-full max-w-md pointer-events-none px-3.5 z-40">
+          <div className="pointer-events-auto w-full">
             <AnimatePresence mode="wait">
               {isTerminalRecording ? (
                 /* 录制中展开态 */
                 <motion.div
                   key="active-rec-pill"
-                  initial={{ scale: 0.85, opacity: 0, y: 10 }}
+                  initial={{ scale: 0.95, opacity: 0, y: 10 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.85, opacity: 0, y: 10 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 10 }}
                   transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-                  className="flex items-center gap-3 p-1.5 pl-3.5 bg-white/95 backdrop-blur-2xl border border-rose-400 rounded-2xl shadow-xl"
+                  className="w-full flex items-center justify-between gap-2.5 p-2 pl-3.5 bg-white/95 backdrop-blur-2xl border border-rose-400 rounded-2xl shadow-xl"
                 >
-                  {/* Live Indicator & Timer */}
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2.5 w-2.5">
+                  {/* Live Indicator & Active Recording SOP */}
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-80"></span>
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
                     </span>
-                    <div className="flex flex-col">
+                    <div className="flex flex-col min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 font-mono">
                         <span className="text-[10px] font-bold text-rose-600">REC</span>
                         <span className="text-xs font-bold text-slate-800 tracking-wider">{formatTime(recordingDuration)}</span>
+                        <span className="text-[10px] text-slate-400">·</span>
+                        <span className="text-[10px] font-sans font-semibold text-blue-600 truncate">
+                          {recordingSopTemplate.shortName}
+                        </span>
                       </div>
-                      <span className="text-[9px] font-sans text-slate-500">工牌实时录制中</span>
+                      <span className="text-[10px] font-sans text-slate-500 truncate">
+                        正在执行：{recordingSopTemplate.name}
+                      </span>
                     </div>
                   </div>
 
                   {/* Stop & Save Button */}
                   <button
                     onClick={handleToggleTerminalRecording}
-                    className="flex items-center gap-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer whitespace-nowrap"
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer whitespace-nowrap flex-shrink-0"
                     title="结束录制并保存切片"
                   >
                     <Square className="w-3 h-3 fill-white" />
@@ -1514,28 +1514,66 @@ export function Dashboard({
                   </button>
                 </motion.div>
               ) : (
-                /* 待机态：有设备绑定，可正常唤醒录制 */
-                <motion.button
-                  key="idle-rec-btn"
-                  initial={{ scale: 0.85, opacity: 0, y: 10 }}
+                /* 待机态：左侧当前执行SOP切换 + 右侧录制新片段按钮（一体式胶囊控制条） */
+                <motion.div
+                  key="idle-rec-dock"
+                  id="bottom-sop-record-dock"
+                  initial={{ scale: 0.95, opacity: 0, y: 10 }}
                   animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.85, opacity: 0, y: 10 }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleToggleTerminalRecording}
-                  className="flex items-center gap-2.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-blue-600/30 border border-blue-400/40 backdrop-blur-xl group cursor-pointer transition-all"
-                  title="向工牌终端下发指令：开启第一视角高清录制并接入 WebRTC 实时画面"
+                  exit={{ scale: 0.95, opacity: 0, y: 10 }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                  className="w-full flex items-center justify-between gap-2 p-1.5 pl-2.5 bg-white/95 backdrop-blur-2xl border border-slate-200/95 rounded-2xl shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5"
                 >
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                  </span>
-                  <Disc className="w-4 h-4 text-white group-hover:rotate-90 transition-transform duration-300" />
-                  <div className="flex flex-col text-left">
-                    <span className="leading-tight tracking-wide">录制新片段</span>
-                    <span className="text-[9px] font-normal text-blue-100 leading-tight">唤醒工牌拍摄</span>
-                  </div>
-                </motion.button>
+                  {/* 左侧：当前执行 SOP 信息与切换入口 */}
+                  <button
+                    type="button"
+                    id="current-executing-sop-select"
+                    onClick={handleOpenRecordingSopSelector}
+                    aria-haspopup="dialog"
+                    aria-expanded={isSopSelectModalOpen}
+                    aria-label={`切换当前执行SOP，当前为 ${recordingSopTemplate.name}`}
+                    className="flex-1 min-w-0 flex items-center justify-between gap-1.5 py-1 px-1.5 rounded-xl hover:bg-slate-100/80 active:scale-[0.99] transition-all cursor-pointer text-left group outline-none"
+                    title="点击切换新录制片段所使用的当前执行 SOP"
+                  >
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        <Layers className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                        <span className="text-[10px] font-bold text-blue-600 tracking-tight">
+                          当前执行SOP
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 min-w-0 mt-0.5">
+                        <span className="text-xs flex-shrink-0">{recordingSopTemplate.icon}</span>
+                        <span className="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors truncate">
+                          {recordingSopTemplate.name}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="flex items-center gap-0.5 text-slate-400 group-hover:text-blue-600 flex-shrink-0 pl-0.5">
+                      <ArrowLeftRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </span>
+                  </button>
+
+                  {/* 中间竖向分割线 */}
+                  <div className="w-px h-8 bg-slate-200 flex-shrink-0" />
+
+                  {/* 右侧：录制新片段主按钮 */}
+                  <button
+                    type="button"
+                    id="record-new-clip-btn"
+                    onClick={handleToggleTerminalRecording}
+                    className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer flex-shrink-0"
+                    title={`按「${recordingSopTemplate.shortName}」唤醒工牌录制新片段`}
+                  >
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                    </span>
+                    <Disc className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                    <span className="whitespace-nowrap tracking-wide">录制新片段</span>
+                  </button>
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
@@ -1555,6 +1593,7 @@ export function Dashboard({
               setIsTerminalRecording(false);
             }}
             onStopAndSave={handleStopAndSaveRecording}
+            sopTemplate={recordingSopTemplate}
           />
         )}
       </AnimatePresence>
