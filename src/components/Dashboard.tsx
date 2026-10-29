@@ -6,11 +6,23 @@ import {
   ArrowRight, User, List, Activity, Sparkles, CheckCircle2, 
   RotateCw, Zap, Utensils, Wrench, Flame, Check,
   Radio, Disc, Square, Video, Wifi, Cloud, Loader2,
-  Lock, Info, AlertCircle, Layers, History as HistoryIcon, ExternalLink
+  Lock, Info, AlertCircle, Layers, History as HistoryIcon, ExternalLink, ArrowLeftRight
 } from 'lucide-react';
 import { Device, TraditionalClip } from '../types';
 import { traditionalClips } from '../data';
 import { LiveRecordingOverlay } from './LiveRecordingOverlay';
+import {
+  SOPAnalysisTemplate,
+  AVAILABLE_SOP_TEMPLATES,
+  ClipSOPRecord,
+  getDefaultSopTemplateForClip as getDefaultSopTemplateHelper,
+  resolveCurrentExecutingSopId,
+  resolveSopTemplateById,
+  applySingleSopSelection
+} from '../utils/sopSelection';
+
+export type { SOPAnalysisTemplate, ClipSOPRecord };
+export { AVAILABLE_SOP_TEMPLATES };
 
 interface DashboardProps {
   device?: Device | null;
@@ -18,70 +30,6 @@ interface DashboardProps {
   onNavigateToPlayback?: (eventId: string) => void;
   onNavigateToPlaybackClip?: (clipId: string) => void;
   onStartActivation?: () => void;
-}
-
-// Available SOP templates for selection
-export interface SOPAnalysisTemplate {
-  id: 'ck' | 'ee' | 'sf' | 'mf';
-  shortName: string;
-  name: string;
-  category: string;
-  icon: string;
-  desc: string;
-  engineName: string;
-  stepsCount: number;
-}
-
-export const AVAILABLE_SOP_TEMPLATES: SOPAnalysisTemplate[] = [
-  {
-    id: 'ck',
-    shortName: '餐饮后厨SOP',
-    name: '餐饮后厨冷链生鲜与切配卫生 SOP',
-    category: '食安合规监督',
-    icon: '🍳',
-    desc: '覆盖生熟砧板刀具分类隔离、冷柜温度 OCR 识别对齐、后厨人员口罩帽子卫生规范。',
-    engineName: '后厨视觉与语音融合多模态引擎 v3.1',
-    stepsCount: 3
-  },
-  {
-    id: 'ee',
-    shortName: '高压电工SOP',
-    name: '高压电气配电柜定检及 LOTO 规程',
-    category: '高危作业安全',
-    icon: '⚡',
-    desc: '覆盖断电锁定挂牌 (LOTO)、20kV 高压绝缘 PPE 穿戴、三相验电放电及盖板封印闭环。',
-    engineName: '高压电气智能合规监督大模型 v4.0',
-    stepsCount: 4
-  },
-  {
-    id: 'sf',
-    shortName: '消防巡检SOP',
-    name: '园区消防通道与周界巡检 SOP',
-    category: '园区安全防范',
-    icon: '🚨',
-    desc: '包含消防主通道 2.4 米净空巡检、应急疏散指示灯查验及物料违规占用抓拍自动派单。',
-    engineName: 'AI 园区全景巡检雷达 v1.8',
-    stepsCount: 3
-  },
-  {
-    id: 'mf',
-    shortName: '精密装配SOP',
-    name: '离散制造精密组装与力矩紧固 SOP',
-    category: '工业智造质检',
-    icon: '⚙️',
-    desc: '包含零部件二维码扫码防错、定扭矩扳手交错紧固、工序完成自动打标入库。',
-    engineName: '离散制造组装工序复核大模型 v2.2',
-    stepsCount: 3
-  }
-];
-
-export interface ClipSOPRecord {
-  sopTaskId: 'ck' | 'ee' | 'sf' | 'mf';
-  sopShortName: string;
-  sopFullName: string;
-  icon: string;
-  timelineEventId: string;
-  analyzedAt: string;
 }
 
 export interface ClipUploadStatus {
@@ -259,17 +207,7 @@ export function Dashboard({
 
   // Helper to determine the default SOP template based on device & clip metadata
   const getDefaultSopTemplateForClip = (clip: TraditionalClip): SOPAnalysisTemplate => {
-    const text = `${clip.description} ${device?.name || ''} ${device?.location || ''}`.toLowerCase();
-    if (text.includes('后厨') || text.includes('备餐') || text.includes('切配') || text.includes('厨房') || text.includes('冷作')) {
-      return AVAILABLE_SOP_TEMPLATES.find(t => t.id === 'ck') || AVAILABLE_SOP_TEMPLATES[0];
-    } else if (text.includes('配电') || text.includes('高压') || text.includes('电工')) {
-      return AVAILABLE_SOP_TEMPLATES.find(t => t.id === 'ee') || AVAILABLE_SOP_TEMPLATES[1];
-    } else if (text.includes('消防') || text.includes('巡检') || text.includes('安保') || text.includes('门')) {
-      return AVAILABLE_SOP_TEMPLATES.find(t => t.id === 'sf') || AVAILABLE_SOP_TEMPLATES[2];
-    } else if (text.includes('车床') || text.includes('精修') || text.includes('装配') || text.includes('制造')) {
-      return AVAILABLE_SOP_TEMPLATES.find(t => t.id === 'mf') || AVAILABLE_SOP_TEMPLATES[3];
-    }
-    return AVAILABLE_SOP_TEMPLATES[0];
+    return getDefaultSopTemplateHelper(clip, device);
   };
 
   const activeTraditionalClip = allClips.find(c => c.id === selectedTraditionalClipId) || allClips[0];
@@ -280,13 +218,14 @@ export function Dashboard({
     : (currentClipRecords.length || 0);
 
   // 当前执行 SOP 计算：优先使用用户为该片段选择的 SOP，其次使用首个已分析的 SOP，最后回退至根据片段特征推荐的 SOP
-  const currentExecutingSopId: 'ck' | 'ee' | 'sf' | 'mf' = 
-    clipExecutingSopMap[activeTraditionalClip.id] ||
-    (currentClipRecords[0]?.sopTaskId) ||
-    getDefaultSopTemplateForClip(activeTraditionalClip).id;
+  const currentExecutingSopId: 'ck' | 'ee' | 'sf' | 'mf' = resolveCurrentExecutingSopId(
+    activeTraditionalClip,
+    clipExecutingSopMap,
+    clipSopRecords,
+    device
+  );
 
-  const currentExecutingTemplate = 
-    AVAILABLE_SOP_TEMPLATES.find(t => t.id === currentExecutingSopId) || AVAILABLE_SOP_TEMPLATES[0];
+  const currentExecutingTemplate = resolveSopTemplateById(currentExecutingSopId);
 
   const matchedRecordForCurrentSop = 
     currentClipRecords.find(r => r.sopTaskId === currentExecutingSopId);
@@ -383,10 +322,9 @@ export function Dashboard({
       });
 
       // Update execution history instance
-      let newExecutionCount = 1;
       setClipExecutionHistory(prev => {
         const existingHistory = prev[clipId] || [];
-        newExecutionCount = existingHistory.length + 1;
+        const nextExecutionCount = existingHistory.length + 1;
         const newExecRecord: SOPExecutionRecord = {
           id: `exec_${clipId}_${Date.now()}`,
           sopTaskId: template.id,
@@ -395,17 +333,17 @@ export function Dashboard({
           icon: template.icon,
           timelineEventId: timelineEventMap[template.id] || 't1',
           analyzedAt: `2026-07-07 ${timeStr}`,
-          executionIndex: newExecutionCount,
+          executionIndex: nextExecutionCount,
           status: template.id === 'ee' ? 'failed' : template.id === 'ck' ? 'warning' : 'passed',
           score: template.id === 'ee' ? 78 : template.id === 'ck' ? 85 : 98
         };
+        setJustCompletedSopName(`「${template.shortName}」已完成第 ${nextExecutionCount} 次执行分析，打标已同步！`);
         return {
           ...prev,
           [clipId]: [newExecRecord, ...existingHistory]
         };
       });
 
-      setJustCompletedSopName(`「${template.shortName}」已完成第 ${newExecutionCount} 次执行分析！`);
       setTimeout(() => {
         setJustCompletedSopName(null);
       }, 4000);
@@ -576,19 +514,20 @@ export function Dashboard({
     }
   };
 
-  // Open SOP selector for a clip
+  // Open unified SOP single-select modal for a clip
   const handleOpenSopSelector = (clip?: TraditionalClip) => {
     const target = clip || activeTraditionalClip;
     setTargetClipForAnalysis(target);
-    const defaultTemplate = getDefaultSopTemplateForClip(target);
-    setSelectedSopTemplateId(defaultTemplate.id);
+    const activeSopId = resolveCurrentExecutingSopId(target, clipExecutingSopMap, clipSopRecords, device);
+    setSelectedSopTemplateId(activeSopId);
     setIsSopSelectModalOpen(true);
   };
 
-  // Execute the SOP Video Analysis Action from Modal
+  // Confirm single-selected SOP from modal, update current executing SOP, and trigger analysis
   const handleStartSopAnalysis = () => {
     if (!targetClipForAnalysis) return;
-    const template = AVAILABLE_SOP_TEMPLATES.find(t => t.id === selectedSopTemplateId) || AVAILABLE_SOP_TEMPLATES[0];
+    const template = resolveSopTemplateById(selectedSopTemplateId);
+    setClipExecutingSopMap(prev => applySingleSopSelection(prev, targetClipForAnalysis.id, selectedSopTemplateId));
     setIsSopSelectModalOpen(false);
     runSopAnalysis(targetClipForAnalysis, template);
   };
@@ -744,12 +683,6 @@ export function Dashboard({
               {/* Video shadow gradient */}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none"></div>
 
-              {/* Floating Top Info Overlay */}
-              <div className="absolute top-3 left-3 bg-slate-950/70 backdrop-blur-md border border-white/10 px-3 py-1 rounded-full text-[10px] sm:text-[11px] font-mono text-slate-200 pointer-events-none flex items-center gap-1.5 z-10 shadow-md">
-                <span className={`w-1.5 h-1.5 rounded-full ${device ? 'bg-emerald-400' : 'bg-slate-400'}`}></span>
-                {device ? `${device.name} (${device.model})` : '未绑定设备 (历史云端存档)'} | 2026-07-07 {formatDynamicTime(activeTraditionalClip.baseSeconds, videoCurrentTime)}
-              </div>
-
               {/* Big Center Play Overlay */}
               {!isPlaying && (
                 <div 
@@ -888,11 +821,11 @@ export function Dashboard({
 
           {/* Right: Analysis & Tools */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* SOP Analysis Trigger Button */}
+            {/* SOP Analysis Trigger Button -> Opens unified SOP single-select modal */}
             <button
-              onClick={() => runSopAnalysis(activeTraditionalClip, currentExecutingTemplate)}
+              onClick={() => handleOpenSopSelector(activeTraditionalClip)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-semibold shadow-sm shadow-blue-600/20 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer"
-              title={`为当前视频片段启动「${currentExecutingTemplate.name}」视频质检分析`}
+              title="点击弹出 SOP 列表，单选一个 SOP 规程进行切换或重新分析"
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
               <span>{matchedRecordForCurrentSop ? '重新分析' : '启动 SOP 分析'}</span>
@@ -922,73 +855,81 @@ export function Dashboard({
           </div>
         </div>
 
-        {/* 当前执行 SOP 下拉选择栏 */}
-        <div className="flex items-center px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs select-none shadow-xs gap-2 min-h-[44px]">
-          <label
-            htmlFor="current-executing-sop-select"
+        {/* 当前执行 SOP 轻量信息与切换栏 (无输入框外边框纯文本 + 轻量切换图标与右箭头按钮) */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50/90 border border-slate-200/80 text-xs select-none gap-2 min-h-[42px]">
+          <span
             className="text-[11px] font-bold text-slate-700 font-mono px-2 py-1 rounded-lg bg-white border border-slate-200 flex-shrink-0 whitespace-nowrap flex items-center gap-1.5 shadow-2xs"
           >
             <Layers className="w-3.5 h-3.5 text-blue-600" />
             <span>当前执行SOP</span>
-          </label>
+          </span>
 
-          <div className="relative flex-1 min-w-0">
-            <select
-              id="current-executing-sop-select"
-              value={currentExecutingSopId}
-              onChange={(e) => {
-                const newId = e.target.value as 'ck' | 'ee' | 'sf' | 'mf';
-                setClipExecutingSopMap(prev => ({ ...prev, [activeTraditionalClip.id]: newId }));
-                setSelectedSopTemplateId(newId);
-              }}
-              className="w-full bg-white hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-800 outline-none transition-all cursor-pointer appearance-none truncate"
-              title="切换当前视频关联执行的 SOP 规程"
-            >
-              {AVAILABLE_SOP_TEMPLATES.map((tmpl) => (
-                <option key={tmpl.id} value={tmpl.id}>
-                  {tmpl.icon} {tmpl.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+          {/* 中间无边框纯文本展示 SOP 名称，右侧仅保留轻量切换图标与右箭头 */}
+          <button
+            type="button"
+            id="current-executing-sop-select"
+            onClick={() => handleOpenSopSelector(activeTraditionalClip)}
+            aria-haspopup="dialog"
+            aria-expanded={isSopSelectModalOpen}
+            aria-label={`切换当前执行SOP，当前为 ${currentExecutingTemplate.name}`}
+            className="flex-1 min-w-0 flex items-center justify-between gap-2 pl-1 pr-0.5 py-1 text-left cursor-pointer group outline-none rounded-lg focus-visible:ring-2 focus-visible:ring-blue-200 transition-colors"
+            title="点击切换当前视频关联执行的 SOP 规程"
+          >
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <span className="flex-shrink-0 text-xs">{currentExecutingTemplate.icon}</span>
+              <span className="text-xs font-semibold text-slate-800 group-hover:text-blue-600 transition-colors truncate">
+                {currentExecutingTemplate.name}
+              </span>
+            </div>
+
+            <span className="flex items-center gap-0.5 text-slate-400 group-hover:text-blue-600 active:scale-95 transition-all flex-shrink-0 pl-1">
+              <ArrowLeftRight className="w-3.5 h-3.5" />
+              <ChevronRight className="w-3.5 h-3.5" />
+            </span>
+          </button>
         </div>
 
-        {/* 当前视频片段执行状态提醒栏 (无底色轻量提醒，只保留状态与查看跳转) */}
-        <div className="flex items-center justify-between px-1 py-1 text-xs select-none">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-slate-600 font-medium whitespace-nowrap text-xs">
-              当前视频片段执行状态：
-            </span>
-            <span className={`px-2 py-0.5 rounded-md font-mono font-bold text-[11px] inline-flex items-center ${
-              currentExecutionCount > 0 
-                ? 'bg-blue-600 text-white shadow-2xs' 
-                : 'bg-slate-200 text-slate-600'
-            }`}>
-              {currentExecutionCount > 0 ? `已执行 ${currentExecutionCount} 次 SOP` : '暂未执行 SOP'}
-            </span>
+        {/* 当前视频片段执行状态提醒栏 (纯文字轻量展示 + 数字蓝色高亮 + 仅已执行时展示查看跳转) */}
+        <div className="flex items-center justify-between px-1 py-0.5 text-xs select-none min-h-[20px]">
+          <div className="flex items-center min-w-0">
+            {currentExecutionCount > 0 ? (
+              <span className="text-slate-500 text-xs whitespace-nowrap">
+                已执行{' '}
+                <span className="font-mono font-bold text-blue-600 mx-0.5 tabular-nums">
+                  {currentExecutionCount}
+                </span>{' '}
+                次 SOP 分析
+              </span>
+            ) : (
+              <span className="text-slate-400 text-xs whitespace-nowrap">
+                暂未执行 SOP 分析
+              </span>
+            )}
           </div>
 
-          <button
-            onClick={() => {
-              if (onNavigateToPlaybackClip) {
-                onNavigateToPlaybackClip(activeTraditionalClip.id);
-              } else if (onNavigateToPlayback) {
-                onNavigateToPlayback(activeTraditionalClip.id);
-              }
-            }}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-0.5 cursor-pointer hover:underline flex-shrink-0 ml-2"
-            title="跳转到该视频的 SOP 分析总览页面"
-          >
-            <span>查看</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+          {currentExecutionCount > 0 && (
+            <button
+              onClick={() => {
+                if (onNavigateToPlaybackClip) {
+                  onNavigateToPlaybackClip(activeTraditionalClip.id);
+                } else if (onNavigateToPlayback) {
+                  onNavigateToPlayback(activeTraditionalClip.id);
+                }
+              }}
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-0.5 cursor-pointer hover:underline flex-shrink-0 ml-2"
+              title="跳转到该视频的 SOP 分析总览页面"
+            >
+              <span>查看</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* 正在分析的过程状态展示 (In-flight Analysis State) */}
         <AnimatePresence>
           {isAnalyzing && (
             <motion.div
+              key="in-flight-analyzing-progress"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -1029,14 +970,15 @@ export function Dashboard({
           {/* Success Toast when analysis completes */}
           {justCompletedSopName && (
             <motion.div
+              key="just-completed-sop-toast"
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
               className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center justify-between shadow-xs"
             >
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>「{justCompletedSopName}」已完成分析，打标已同步！</span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <span>{justCompletedSopName}</span>
               </div>
             </motion.div>
           )}
@@ -1105,27 +1047,15 @@ export function Dashboard({
                           <span className="text-slate-300">{clip.duration}</span>
                         </div>
 
-                        {/* Top Right Uploading / Analyzed SOP / Unanalyzed Mark */}
-                        <div className="absolute top-2 right-2 z-10">
-                          {isUploading ? (
+                        {/* Top Right Uploading Mark (only when actively uploading) */}
+                        {isUploading && (
+                          <div className="absolute top-2 right-2 z-10">
                             <span className="px-2 py-0.5 rounded-md text-[9px] font-semibold shadow-xs backdrop-blur-md bg-sky-950/90 text-sky-300 border border-sky-500/50 flex items-center gap-1 animate-pulse">
                               <Loader2 className="w-2.5 h-2.5 text-sky-400 animate-spin" />
                               <span>上传中 {uploadStatus.progress}%</span>
                             </span>
-                          ) : clipExecCount > 0 ? (
-                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-semibold shadow-xs backdrop-blur-md bg-blue-950/85 text-blue-200 border border-blue-500/40 flex items-center gap-1">
-                              <span>{clipRecords[0]?.icon || '✨'}</span>
-                              <span>{clipRecords[0]?.sopShortName || 'SOP'}</span>
-                              <span className="px-1 py-0.2 rounded bg-blue-600 text-white font-mono text-[8.5px] font-bold">
-                                {clipExecCount}次
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-medium shadow-xs backdrop-blur-md bg-slate-950/70 text-slate-300 border border-white/10 flex items-center gap-0.5">
-                              未分析 (0次)
-                            </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Play icon overlay on hover */}
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -1239,32 +1169,13 @@ export function Dashboard({
                     </div>
                   </div>
 
-                  {/* Right Column: Upload status / Analyzed SOP pill / Unanalyzed pill + Duration */}
+                  {/* Right Column: Upload status + Duration */}
                   <div className="flex items-center gap-2.5 flex-shrink-0">
-                    {isUploading ? (
+                    {isUploading && (
                       <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center gap-1 animate-pulse whitespace-nowrap">
                         <Loader2 className="w-2.5 h-2.5 text-sky-600 animate-spin flex-shrink-0" />
                         <span>上传中 {uploadStatus.progress}%</span>
                       </span>
-                    ) : clipExecCount > 0 ? (
-                      <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1.5 whitespace-nowrap">
-                        <span>{clipRecords[0]?.icon || '✨'}</span>
-                        <span>{clipRecords[0]?.sopShortName || 'SOP已执行'}</span>
-                        <span className="px-1.5 py-0.2 rounded-full bg-blue-200/90 text-blue-800 text-[9px] font-mono font-bold">
-                          已执行 {clipExecCount} 次
-                        </span>
-                      </span>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenSopSelector(clip);
-                        }}
-                        className="px-2 py-1 rounded-lg text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition-colors cursor-pointer whitespace-nowrap"
-                        title="点击为此片段选择 SOP 进行质检分析"
-                      >
-                        未分析 (0次)
-                      </button>
                     )}
 
                     <span className="text-xs font-mono text-slate-500 w-10 text-right flex-shrink-0">{clip.duration}</span>
@@ -1277,114 +1188,136 @@ export function Dashboard({
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. SOP 模板选择弹窗 (为视频片段选择绑定的 SOP 规程并启动多模态视频分析) */}
+      {/* 3. 统一 SOP 列表单选弹窗 (移动端尺寸，严格限制在 max-w-md 手机页面范围内) */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {isSopSelectModalOpen && targetClipForAnalysis && (
           <div 
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 max-w-md mx-auto bg-slate-900/45 backdrop-blur-[2px] z-50 flex items-center justify-center px-4 py-4"
             onClick={() => setIsSopSelectModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sop-single-select-modal-title"
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              initial={{ scale: 0.95, opacity: 0, y: 12 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 relative overflow-hidden"
+              exit={{ scale: 0.95, opacity: 0, y: 12 }}
+              transition={{ duration: 0.18 }}
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-[380px] p-3.5 shadow-xl flex flex-col gap-2.5 relative overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-xs">
-                    <Sparkles className="w-5 h-5" />
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-2xs flex-shrink-0">
+                    <Layers className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-800">选择 SOP 规程并启动视频分析</h3>
-                    <p className="text-[11px] text-slate-500">系统将调用多模态视觉模型对该片段进行核验</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h3 id="sop-single-select-modal-title" className="text-xs font-bold text-slate-800 truncate">
+                        切换 / 选择执行 SOP 规程
+                      </h3>
+                      <span className="px-1.5 py-0.2 rounded bg-blue-50 border border-blue-200 text-[9px] font-bold text-blue-600 flex-shrink-0">
+                        单选
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                      从已有 SOP 列表中单选一个规程进行切换分析
+                    </p>
                   </div>
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setIsSopSelectModalOpen(false)}
-                  className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors text-xs font-bold cursor-pointer"
+                  aria-label="关闭 SOP 选择弹窗"
+                  className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center transition-colors text-[11px] font-bold cursor-pointer flex-shrink-0"
                 >
                   ✕
                 </button>
               </div>
 
-              {/* Target Clip Summary Capsule */}
-              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
-                <div className="w-14 h-9 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
-                  <img src={targetClipForAnalysis.imageUrl} alt="" className="w-full h-full object-cover" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-blue-600">
-                      {targetClipForAnalysis.timeLabel} ({targetClipForAnalysis.duration})
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      {targetClipForAnalysis.hour}分卷
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {targetClipForAnalysis.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* SOP Template Selection Cards */}
-              <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1">
+              {/* SOP Single-Select Radio List */}
+              <div 
+                role="radiogroup" 
+                aria-label="已有 SOP 规程单选列表"
+                className="flex flex-col gap-1.5 max-h-[300px] overflow-y-auto pr-0.5"
+              >
                 {AVAILABLE_SOP_TEMPLATES.map((tmpl) => {
                   const isSelected = selectedSopTemplateId === tmpl.id;
+                  const targetRecords = clipSopRecords[targetClipForAnalysis.id] || [];
+                  const isAlreadyAnalyzed = targetRecords.some(r => r.sopTaskId === tmpl.id);
                   
                   return (
-                    <div
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
                       key={tmpl.id}
                       onClick={() => setSelectedSopTemplateId(tmpl.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 active:scale-[0.99] ${
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all cursor-pointer flex items-center gap-2.5 active:scale-[0.99] ${
                         isSelected
-                          ? 'bg-blue-50/80 border-blue-500 shadow-sm'
-                          : 'bg-white border-slate-200 hover:border-slate-300'
+                          ? 'bg-blue-50/80 border-blue-500 ring-1 ring-blue-500/20 shadow-2xs'
+                          : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
                       }`}
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0 mt-0.5 ${
-                        isSelected ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs flex-shrink-0 ${
+                        isSelected ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-600'
                       }`}>
                         {tmpl.icon}
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <h4 className={`text-xs font-bold truncate ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
+                        <div className="flex items-center justify-between gap-1">
+                          <h4 className={`text-[11px] font-bold truncate ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
                             {tmpl.name}
                           </h4>
-                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 flex-shrink-0">
-                            {tmpl.stepsCount} 规程步
-                          </span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {isAlreadyAnalyzed && (
+                              <span className="text-[8.5px] font-semibold px-1 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                已分析
+                              </span>
+                            )}
+                            <span className="text-[8.5px] font-mono px-1 py-0.2 rounded bg-slate-100 text-slate-600">
+                              {tmpl.stepsCount}步
+                            </span>
+                          </div>
                         </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mt-1 line-clamp-2">
+                        <p className="text-[9.5px] text-slate-500 leading-snug mt-0.5 line-clamp-1">
                           {tmpl.desc}
                         </p>
                       </div>
-                    </div>
+
+                      {/* Single-select Radio Circle Indicator */}
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isSelected
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-2xs'
+                          : 'border-slate-300 bg-white'
+                      }`}>
+                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                      </div>
+                    </button>
                   );
                 })}
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100">
                 <button
+                  type="button"
                   onClick={() => setIsSopSelectModalOpen(false)}
-                  className="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
+                  className="w-1/3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                 >
                   取消
                 </button>
                 <button
+                  type="button"
                   onClick={handleStartSopAnalysis}
-                  className="w-2/3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                  className="w-2/3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>启动多模态视频分析</span>
+                  <span>确认选择并分析</span>
                 </button>
               </div>
             </motion.div>
@@ -1393,19 +1326,19 @@ export function Dashboard({
       </AnimatePresence>
 
       {/* ========================================================================= */}
-      {/* 3.5 SOP 历次执行记录明细弹窗 (展示当前视频片段已执行了几次 SOP 及每次详情) */}
+      {/* 3.5 SOP 历次执行记录明细弹窗 (严格限制在 max-w-md 移动端页面范围内) */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {showExecutionHistoryModal && (
           <div 
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 max-w-md mx-auto bg-slate-900/45 backdrop-blur-[2px] z-50 flex items-center justify-center px-4 py-4"
             onClick={() => setShowExecutionHistoryModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              initial={{ scale: 0.95, opacity: 0, y: 12 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-5 shadow-2xl flex flex-col gap-4 relative overflow-hidden max-h-[85vh]"
+              exit={{ scale: 0.95, opacity: 0, y: 12 }}
+              className="bg-white border border-slate-200 rounded-2xl w-full max-w-[380px] p-4 shadow-xl flex flex-col gap-3 relative overflow-hidden max-h-[82vh]"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
