@@ -1,0 +1,6 @@
+{
+  "name": "AuraVision OS (奥视智能 - 穿戴式 AI 视听多模态安监平台)",
+  "description": "无屏智能硬件与穿戴设备 AI 视听多模态安监平台。支持第一视角实时监控、SOP 帧级大任务审计报告、工业算法热挂接与 AI 智能诊断问答。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
