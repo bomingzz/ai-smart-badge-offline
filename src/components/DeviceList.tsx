@@ -4,7 +4,7 @@ import {
   Battery, BatteryMedium, BatteryWarning, Cpu, ChevronRight, Search, Server, ShieldAlert, 
   Plus, X, Bluetooth, Radio, Check, CheckCircle2, Loader2, Sparkles, Eye,
   QrCode, Scan, Power, Building2, UserCheck, RotateCcw, Clock, AlertTriangle, ArrowRight,
-  Bookmark, Tag, Smartphone, CheckCheck
+  Bookmark, Tag, Smartphone, CheckCheck, Settings as SettingsIcon
 } from 'lucide-react';
 import { mockDeviceGroups } from '../data';
 import { Device, DeviceGroup } from '../types';
@@ -15,11 +15,12 @@ interface DeviceListProps {
   key?: React.Key;
   initialMode?: 'list' | 'intro';
   onSelectDevice: (device: Device) => void;
+  onOpenDeviceSettings?: (device: Device) => void;
   triggerActivation?: number;
   onActivationChange?: (isOpen: boolean) => void;
 }
 
-export function DeviceList({ initialMode = 'list', onSelectDevice, triggerActivation, onActivationChange }: DeviceListProps) {
+export function DeviceList({ initialMode = 'list', onSelectDevice, onOpenDeviceSettings, triggerActivation, onActivationChange }: DeviceListProps) {
   const [viewMode, setViewMode] = useState<'list' | 'intro'>(initialMode);
 
   useEffect(() => {
@@ -329,16 +330,24 @@ export function DeviceList({ initialMode = 'list', onSelectDevice, triggerActiva
                   </h3>
                   <div className="flex flex-col gap-3">
                     {filteredDevices.map(device => (
-                      <button 
+                      <div 
                         key={device.id} 
+                        role="button"
+                        tabIndex={0}
                         onClick={() => onSelectDevice(device)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSelectDevice(device);
+                          }
+                        }}
                         className="flex flex-col p-4 bg-white border border-slate-200 hover:border-blue-400 rounded-2xl transition-all group text-left relative overflow-hidden gap-3 shadow-xs hover:shadow-md cursor-pointer"
                       >
                         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                         
-                        {/* Top Row: Device Info */}
-                        <div className="flex items-start justify-between w-full relative z-10">
-                           <div className="flex items-center gap-3">
+                        {/* Top Row: Device Info & Settings Entry */}
+                        <div className="flex items-start justify-between w-full relative z-10 gap-2">
+                           <div className="flex items-center gap-3 min-w-0 flex-1">
                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center border shadow-xs flex-shrink-0 ${
                                 device.status === 'online' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
                                 device.status === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-600' :
@@ -347,10 +356,10 @@ export function DeviceList({ initialMode = 'list', onSelectDevice, triggerActiva
                                 {device.status === 'warning' ? <ShieldAlert className="w-5 h-5" /> : <Cpu className="w-5 h-5" />}
                               </div>
                               
-                              <div className="flex-1">
+                              <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">{device.name}</h4>
-                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium ${
+                                  <h4 className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors truncate">{device.name}</h4>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium flex-shrink-0 ${
                                     device.status === 'online' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                                     device.status === 'warning' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
                                     'bg-slate-100 text-slate-600 border border-slate-200'
@@ -359,23 +368,36 @@ export function DeviceList({ initialMode = 'list', onSelectDevice, triggerActiva
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                  <span>{device.model}</span>
-                                  <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                  <span className="truncate">{device.model}</span>
+                                  <span className="w-1 h-1 rounded-full bg-slate-300 flex-shrink-0"></span>
                                   <span className="truncate">{device.location}</span>
                                 </div>
                               </div>
                            </div>
                            
-                           <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2.5">
+                           <div className="flex items-center gap-1.5 flex-shrink-0">
                              {device.status !== 'offline' && (
-                               <div className="flex items-center gap-1.5 text-[11px] font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                               <div className="flex items-center gap-1 text-[11px] font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
                                  {device.battery > 50 ? <Battery className="w-3.5 h-3.5 text-emerald-600" /> : 
                                   device.battery > 20 ? <BatteryMedium className="w-3.5 h-3.5 text-amber-600" /> : 
                                   <BatteryWarning className="w-3.5 h-3.5 text-rose-600 animate-pulse" />}
                                  {device.battery}%
                                </div>
                              )}
-                             <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors hidden sm:block" />
+                             <button
+                               type="button"
+                               data-testid={`device-settings-btn-${device.id}`}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 onOpenDeviceSettings?.(device);
+                               }}
+                               className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-300 text-xs font-semibold transition-all active:scale-95 cursor-pointer shadow-2xs"
+                               title={`查看「${device.name}」设备信息与设置`}
+                             >
+                               <SettingsIcon className="w-3.5 h-3.5" />
+                               <span>设置</span>
+                             </button>
+                             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
                            </div>
                         </div>
 
@@ -399,7 +421,7 @@ export function DeviceList({ initialMode = 'list', onSelectDevice, triggerActiva
                              </div>
                            </div>
                         )}
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </section>

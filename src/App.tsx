@@ -364,27 +364,13 @@ export default function App() {
                 </AnimatePresence>
               </div>
 
-              {/* Status Indicator & Settings / Bind Device Button */}
+              {/* Status Indicator & Bind Device Button (No Settings Button in Top Bar) */}
               <div className="flex items-center gap-2">
                 {currentView !== 'devices_empty' && selectedDevice ? (
-                  <>
-                    <div className="flex items-center gap-1 text-xs font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 shadow-xs">
-                      <Battery className="w-3.5 h-3.5 text-emerald-500" />
-                      <span>{selectedDevice.battery}%</span>
-                    </div>
-
-                    <button 
-                      onClick={() => setCurrentView(currentView === 'settings' ? 'dashboard' : 'settings')}
-                      className={`p-1.5 rounded-lg border transition-all ${
-                        currentView === 'settings'
-                          ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-xs'
-                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-blue-600 hover:border-slate-300'
-                      }`}
-                      title="设备信息与设置"
-                    >
-                      <GearIcon className={`w-4 h-4 ${currentView === 'settings' ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
-                    </button>
-                  </>
+                  <div className="flex items-center gap-1 text-xs font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 shadow-xs">
+                    <Battery className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>{selectedDevice.battery}%</span>
+                  </div>
                 ) : !isBindingPageOpen ? (
                   <button 
                     onClick={() => {
@@ -422,7 +408,13 @@ export default function App() {
                         setIsBindingPageOpen(false);
                         setSelectedDevice(device);
                         setCurrentView('dashboard');
-                      }} 
+                      }}
+                      onOpenDeviceSettings={(device) => {
+                        setIsBindingPageOpen(false);
+                        setSelectedDevice(device);
+                        setCurrentView('settings');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
                     />
                   </motion.div>
                 )}
@@ -542,6 +534,10 @@ export default function App() {
                   >
                     <SettingsComponent 
                       device={selectedDevice} 
+                      onBackToDevices={() => {
+                        setCurrentView('devices');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
                       onUnbindDevice={() => {
                         setSelectedDevice(null);
                         setUnboundHistoryMode('with_history');
