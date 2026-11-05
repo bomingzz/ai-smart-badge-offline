@@ -540,7 +540,15 @@ export default function App() {
                     transition={{ duration: 0.2 }}
                     className="h-full"
                   >
-                    <SettingsComponent device={selectedDevice} />
+                    <SettingsComponent 
+                      device={selectedDevice} 
+                      onUnbindDevice={() => {
+                        setSelectedDevice(null);
+                        setUnboundHistoryMode('with_history');
+                        setCurrentView('dashboard');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
                   </motion.div>
                 )}
               </AnimatePresence>

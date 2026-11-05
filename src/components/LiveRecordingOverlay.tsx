@@ -120,12 +120,6 @@ export function LiveRecordingOverlay({
           <span className="font-bold text-white tracking-widest">{formatTime(duration)}</span>
         </div>
 
-        {/* Top Right: WebRTC Telemetry Badge */}
-        <div className="absolute top-3 right-3 bg-slate-950/85 backdrop-blur-md border border-slate-800 px-2.5 py-1 rounded-full text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 z-10 shadow-md">
-          <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
-          <span>WebRTC 1080P | 24ms</span>
-        </div>
-
         {/* Center Camera Crosshair / Reticle */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-30">
           <div className="w-16 h-16 border border-white/50 rounded-full flex items-center justify-center">
@@ -133,33 +127,23 @@ export function LiveRecordingOverlay({
           </div>
         </div>
 
-        {/* Bottom Bar overlay: Live Audio & Stop Button */}
+        {/* Bottom Bar overlay: Device & Live Audio */}
         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-1.5 text-[10px] text-white/90 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 font-mono">
             <span>DEVICE: {device.name}</span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsMuted(!isMuted)}
-              className="p-1.5 bg-slate-950/70 hover:bg-slate-900 text-slate-300 hover:text-white rounded-lg backdrop-blur-md border border-slate-800 transition-colors cursor-pointer"
-              title={isMuted ? '取消静音' : '静音'}
-            >
-              {isMuted ? (
-                <VolumeX className="w-4 h-4 text-rose-400" />
-              ) : (
-                <Volume2 className="w-4 h-4 text-emerald-400" />
-              )}
-            </button>
-
-            <button
-              onClick={() => onStopAndSave(duration)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-lg text-xs font-bold shadow-md shadow-rose-600/40 transition-all cursor-pointer whitespace-nowrap"
-            >
-              <Square className="w-3 h-3 fill-white" />
-              <span>结束录制</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className="p-1.5 bg-slate-950/70 hover:bg-slate-900 text-slate-300 hover:text-white rounded-lg backdrop-blur-md border border-slate-800 transition-colors cursor-pointer"
+            title={isMuted ? '取消静音' : '静音'}
+          >
+            {isMuted ? (
+              <VolumeX className="w-4 h-4 text-rose-400" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-emerald-400" />
+            )}
+          </button>
         </div>
       </div>
 

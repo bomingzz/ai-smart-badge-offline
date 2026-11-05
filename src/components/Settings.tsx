@@ -19,15 +19,18 @@ import {
   Battery, 
   Cloud,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  Unlink,
+  AlertTriangle
 } from 'lucide-react';
 import { Device } from '../types';
 
 interface SettingsProps {
   device: Device;
+  onUnbindDevice?: () => void;
 }
 
-export function Settings({ device }: SettingsProps) {
+export function Settings({ device, onUnbindDevice }: SettingsProps) {
   // Volume & Brightness State (灯光、音量调整)
   const [volume, setVolume] = useState<number>(75);
   const [brightness, setBrightness] = useState<number>(85);
@@ -48,6 +51,7 @@ export function Settings({ device }: SettingsProps) {
   const [aiQuotaUsed, setAiQuotaUsed] = useState<number>(338); // Looki+ Prime style: 338 remaining / limit
   const aiQuotaTotal = 1000;
   const [isRefreshingQuota, setIsRefreshingQuota] = useState<boolean>(false);
+  const [isUnbindModalOpen, setIsUnbindModalOpen] = useState<boolean>(false);
 
   // Auto-sync simulator to show active streaming in background
   useEffect(() => {
@@ -103,6 +107,18 @@ export function Settings({ device }: SettingsProps) {
     >
       {/* Device Hero Visual Section */}
       <div className="relative rounded-3xl bg-gradient-to-b from-blue-50/70 via-white to-white p-6 border border-slate-200 shadow-xs overflow-hidden flex flex-col items-center">
+        {/* Top-Right Quick Unbind Entry */}
+        <button
+          type="button"
+          id="unbind-device-top-btn"
+          onClick={() => setIsUnbindModalOpen(true)}
+          className="absolute top-4 right-4 z-10 px-2.5 py-1 rounded-full bg-white/90 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-200 text-[11px] font-semibold flex items-center gap-1 shadow-2xs transition-all active:scale-95 cursor-pointer"
+          title="解除当前设备绑定"
+        >
+          <Unlink className="w-3 h-3" />
+          <span>解绑设备</span>
+        </button>
+
         {/* Blue Background glow */}
         <div className="absolute top-[-50px] w-64 h-64 bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
         
@@ -415,6 +431,84 @@ export function Settings({ device }: SettingsProps) {
           </a>
         </div>
       </div>
+
+      {/* Unbind Device Section (解除设备绑定入口) */}
+      <div className="pt-2">
+        <button
+          type="button"
+          id="unbind-device-bottom-btn"
+          onClick={() => setIsUnbindModalOpen(true)}
+          className="w-full py-3.5 px-4 bg-white hover:bg-rose-50/80 active:scale-[0.99] border border-rose-200 hover:border-rose-300 rounded-2xl text-rose-600 font-bold text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+        >
+          <Unlink className="w-4 h-4 stroke-[2.2]" />
+          <span>解除设备绑定</span>
+        </button>
+        <p className="text-[11px] text-slate-400 text-center mt-2">
+          解绑后将断开当前终端实时连接，云端已同步的历史视频仍可正常回看
+        </p>
+      </div>
+
+      {/* Secondary Confirmation Modal for Unbinding Device */}
+      <AnimatePresence>
+        {isUnbindModalOpen && (
+          <div
+            className="fixed inset-0 max-w-md mx-auto bg-slate-900/50 backdrop-blur-[2px] z-50 flex items-center justify-center px-5"
+            onClick={() => setIsUnbindModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="unbind-modal-title"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 flex flex-col items-center text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 mb-3.5 shadow-2xs">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+
+              <h4 id="unbind-modal-title" className="text-base font-bold text-slate-900">
+                确认解除设备绑定？
+              </h4>
+
+              <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 inline-flex items-center gap-2 text-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="font-bold text-slate-800">{device.name}</span>
+                <span className="text-slate-400 font-mono text-[11px]">({device.model})</span>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed mt-3">
+                解绑后将断开与该设备的实时连接及新片段录制功能。已归档至云端的历史视频不会丢失，确认后将返回<span className="text-slate-700 font-semibold">首页视频回放</span>。
+              </p>
+
+              <div className="grid grid-cols-2 gap-3 w-full mt-6">
+                <button
+                  type="button"
+                  id="cancel-unbind-btn"
+                  onClick={() => setIsUnbindModalOpen(false)}
+                  className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors active:scale-95 cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  id="confirm-unbind-btn"
+                  onClick={() => {
+                    setIsUnbindModalOpen(false);
+                    onUnbindDevice?.();
+                  }}
+                  className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-md shadow-rose-600/25 transition-all active:scale-95 cursor-pointer"
+                >
+                  确认解绑
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
