@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { ViewState, Device, SuperAppTab, AppScreen } from './types';
+import { ViewState, Device, SuperAppTab, AppScreen, BadgeCardConfig } from './types';
 import { Dashboard } from './components/Dashboard';
 import { History } from './components/History';
 import { Skills } from './components/Skills';
@@ -14,6 +14,8 @@ import { MineTab } from './components/MineTab';
 import { SuperAppNav } from './components/SuperAppNav';
 import { PageFlowView } from './components/PageFlowView';
 import { EmptyDeviceShowcase } from './components/EmptyDeviceShowcase';
+import { EInkBadgeModule } from './components/EInkBadgeModule';
+import { DEFAULT_BADGE_CARD_CONFIG } from './components/BadgeCardGeneratorModal';
 import { mockDeviceGroups } from './data';
 import { 
   ChevronLeft, Settings as GearIcon, Battery, 
@@ -35,6 +37,7 @@ export default function App() {
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const [unboundHistoryMode, setUnboundHistoryMode] = useState<'with_history' | 'pure_empty'>('with_history');
   const [isBindingPageOpen, setIsBindingPageOpen] = useState(false);
+  const [badgeCardConfig, setBadgeCardConfig] = useState<BadgeCardConfig>(DEFAULT_BADGE_CARD_CONFIG);
 
   // Enter badge application from SuperApp / Workbench
   const handleNavigateToBadge = (view: ViewState) => {
@@ -49,7 +52,7 @@ export default function App() {
       }
       setCurrentView('dashboard');
     } else {
-      if (!selectedDevice && (view === 'playback' || view === 'settings')) {
+      if (!selectedDevice && (view === 'playback' || view === 'settings' || view === 'eink_badge')) {
         setSelectedDevice(defaultDevice);
       }
       setCurrentView(view);
@@ -538,10 +541,44 @@ export default function App() {
                         setCurrentView('devices');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
+                      onRenameDevice={(newName: string) => {
+                        setSelectedDevice(prev => prev ? { ...prev, name: newName } : null);
+                      }}
                       onUnbindDevice={() => {
                         setSelectedDevice(null);
                         setUnboundHistoryMode('with_history');
                         setCurrentView('dashboard');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onOpenEInkModule={() => {
+                        setCurrentView('eink_badge');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      badgeCardConfig={badgeCardConfig}
+                      onUpdateBadgeCardConfig={(newConfig) => {
+                        setBadgeCardConfig(newConfig);
+                      }}
+                    />
+                  </motion.div>
+                )}
+
+                {currentView === 'eink_badge' && (
+                  <motion.div
+                    key="view-eink-badge"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className="h-full"
+                  >
+                    <EInkBadgeModule
+                      device={selectedDevice || defaultDevice}
+                      badgeCardConfig={badgeCardConfig}
+                      onUpdateBadgeCardConfig={(newConfig) => {
+                        setBadgeCardConfig(newConfig);
+                      }}
+                      onBack={() => {
+                        setCurrentView('settings');
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                     />

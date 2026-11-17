@@ -1,4 +1,4 @@
-export type ViewState = 'dashboard' | 'playback' | 'history' | 'skills' | 'settings' | 'devices' | 'devices_empty';
+export type ViewState = 'dashboard' | 'playback' | 'history' | 'skills' | 'settings' | 'devices' | 'devices_empty' | 'eink_badge';
 export type SuperAppTab = 'home' | 'workbench' | 'smart_scene' | 'mine';
 export type AppScreen = 'super_app' | 'badge_app' | 'page_flow';
 
@@ -89,4 +89,20 @@ export interface TraditionalClip {
   baseSeconds: number;
   description: string;
 }
+
+export interface BadgeCardConfig {
+  theme: 'dark' | 'light';
+  companyName: string;
+  logoType: 'moredian' | 'custom';
+  customLogoUrl?: string;
+  name: string;
+  primaryRole: string;
+  secondaryRole: string;
+  website: string;
+  portraitUrl: string;
+  empNo: string;
+  generatedPngDataUrl?: string;
+  generatedAt?: string;
+}
+
 

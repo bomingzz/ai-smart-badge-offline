@@ -156,7 +156,24 @@ export function Workbench({ onNavigateToBadge, onNavigateToDeviceList, onNavigat
               </span>
             </button>
 
-            {/* 6. 设备中心 (无设备空态) */}
+            {/* 6. 墨水屏工牌 (随身助理) */}
+            <button
+              id="workbench-eink-entry-btn"
+              onClick={() => onNavigateToBadge('eink_badge')}
+              className="flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform group"
+            >
+              <div className="w-[52px] h-[52px] rounded-2xl bg-gradient-to-br from-slate-800 to-slate-950 shadow-md shadow-slate-900/20 flex items-center justify-center text-white relative group-hover:shadow-lg transition-shadow">
+                <FileText className="w-6 h-6 stroke-[2.2]" />
+                <span className="absolute -bottom-1 -right-1 bg-rose-600 text-white text-[8px] font-extrabold px-1 rounded-full border border-white">
+                  墨水屏
+                </span>
+              </div>
+              <span className="text-[12px] font-medium text-slate-800 group-hover:text-rose-600 transition-colors">
+                墨水屏工牌
+              </span>
+            </button>
+
+            {/* 7. 设备中心 (无设备空态) */}
             <button
               onClick={() => onNavigateToBadge('devices_empty')}
               className="flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform group"

@@ -22,17 +22,33 @@ import {
   ChevronLeft,
   BookOpen,
   Unlink,
-  AlertTriangle
+  AlertTriangle,
+  Pencil,
+  X,
+  IdCard
 } from 'lucide-react';
-import { Device } from '../types';
+import { Device, BadgeCardConfig } from '../types';
+import { BadgeCardGeneratorModal, DEFAULT_BADGE_CARD_CONFIG } from './BadgeCardGeneratorModal';
 
 interface SettingsProps {
   device: Device;
   onBackToDevices?: () => void;
+  onRenameDevice?: (newName: string) => void;
   onUnbindDevice?: () => void;
+  onOpenEInkModule?: () => void;
+  badgeCardConfig?: BadgeCardConfig;
+  onUpdateBadgeCardConfig?: (newConfig: BadgeCardConfig, navigateToBadge?: boolean) => void;
 }
 
-export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsProps) {
+export function Settings({
+  device,
+  onBackToDevices,
+  onRenameDevice,
+  onUnbindDevice,
+  onOpenEInkModule,
+  badgeCardConfig,
+  onUpdateBadgeCardConfig
+}: SettingsProps) {
   // Volume & Brightness State (灯光、音量调整)
   const [volume, setVolume] = useState<number>(75);
   const [brightness, setBrightness] = useState<number>(85);
@@ -50,6 +66,18 @@ export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsPr
   const [upgradeStep, setUpgradeStep] = useState<'idle' | 'checking' | 'downloading' | 'installing' | 'success'>('idle');
 
   const [isUnbindModalOpen, setIsUnbindModalOpen] = useState<boolean>(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState<boolean>(false);
+  const [isBadgeCardModalOpen, setIsBadgeCardModalOpen] = useState<boolean>(false);
+  const [localBadgeConfig, setLocalBadgeConfig] = useState<BadgeCardConfig>(
+    badgeCardConfig || DEFAULT_BADGE_CARD_CONFIG
+  );
+  const [editingName, setEditingName] = useState<string>(device.name);
+
+  useEffect(() => {
+    if (badgeCardConfig) {
+      setLocalBadgeConfig(badgeCardConfig);
+    }
+  }, [badgeCardConfig]);
 
   // Auto-sync simulator to show active streaming in background
   useEffect(() => {
@@ -95,6 +123,24 @@ export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsPr
 
   const percentStorage = (storageUsed / storageTotal) * 100;
 
+  if (isBadgeCardModalOpen) {
+    return (
+      <BadgeCardGeneratorModal
+        isOpen={isBadgeCardModalOpen}
+        initialConfig={localBadgeConfig}
+        onClose={() => setIsBadgeCardModalOpen(false)}
+        onSaveAndSync={(newConfig, navigateToBadge) => {
+          setLocalBadgeConfig(newConfig);
+          onUpdateBadgeCardConfig?.(newConfig, navigateToBadge);
+          if (navigateToBadge) {
+            setIsBadgeCardModalOpen(false);
+            onOpenEInkModule?.();
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -132,7 +178,7 @@ export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsPr
           />
         </div>
 
-        {/* Right: Device Metadata, Status Pills & Quick Unbind Action */}
+        {/* Right: Device Metadata, Status Pills & Edit Device Name Icon */}
         <div className="flex-1 min-w-0 flex flex-col justify-between gap-2">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
@@ -144,16 +190,19 @@ export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsPr
               </p>
             </div>
 
-            {/* Top-Right Quick Unbind Entry */}
+            {/* Top-Right Edit Device Name Icon Button */}
             <button
               type="button"
-              id="unbind-device-top-btn"
-              onClick={() => setIsUnbindModalOpen(true)}
-              className="px-2.5 py-1 rounded-full bg-white hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 hover:border-rose-200 text-[11px] font-semibold flex items-center gap-1 shadow-2xs transition-all active:scale-95 cursor-pointer flex-shrink-0"
-              title="解除当前设备绑定"
+              id="edit-device-name-btn"
+              onClick={() => {
+                setEditingName(device.name);
+                setIsRenameModalOpen(true);
+              }}
+              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-600 border border-slate-200/90 hover:border-blue-300 flex items-center justify-center shadow-2xs transition-all active:scale-95 cursor-pointer flex-shrink-0"
+              title="修改设备名称"
+              aria-label="修改设备名称"
             >
-              <Unlink className="w-3 h-3" />
-              <span>解绑设备</span>
+              <Pencil className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -178,6 +227,26 @@ export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsPr
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Badge Identity Card Settings & 480x720 PNG Generator Entry Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-xs font-bold text-slate-900">工牌身份名片设置</span>
+          <span className="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-mono font-bold">
+            480×720 PNG
+          </span>
+        </div>
+
+        <button
+          type="button"
+          id="open-badge-card-editor-btn"
+          onClick={() => setIsBadgeCardModalOpen(true)}
+          className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold flex items-center gap-1 flex-shrink-0 cursor-pointer shadow-xs transition-all"
+        >
+          <span>设置名片</span>
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Control sliders row (灯光 & 音量大小调整) */}
@@ -395,6 +464,111 @@ export function Settings({ device, onBackToDevices, onUnbindDevice }: SettingsPr
           解绑后将断开当前终端实时连接，云端已同步的历史视频仍可正常回看
         </p>
       </div>
+
+      {/* Rename Device Modal (修改设备名称弹窗) */}
+      <AnimatePresence>
+        {isRenameModalOpen && (
+          <div
+            className="fixed inset-0 max-w-md mx-auto bg-slate-900/50 backdrop-blur-[2px] z-50 flex items-center justify-center px-5"
+            onClick={() => setIsRenameModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-modal-title"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-white rounded-3xl border border-slate-200 shadow-2xl p-5 flex flex-col"
+            >
+              <div className="flex items-center justify-between mb-3.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                    <Pencil className="w-4 h-4" />
+                  </div>
+                  <h4 id="rename-modal-title" className="text-sm font-bold text-slate-900">
+                    修改设备名称
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRenameModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 mb-1.5">
+                    设备显示名称
+                  </label>
+                  <input
+                    type="text"
+                    id="device-name-input"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    placeholder="请输入设备名称..."
+                    maxLength={24}
+                    autoFocus
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white text-sm font-semibold text-slate-800 outline-none transition-all"
+                  />
+                </div>
+
+                <div>
+                  <span className="block text-[10px] font-semibold text-slate-400 mb-1.5">
+                    常用岗位快捷命名：
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {['主厨视角设备', 'A区后厨1号工牌', '配电室巡检工牌', '冷链仓管终端'].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setEditingName(preset)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors cursor-pointer ${
+                          editingName === preset
+                            ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold'
+                            : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 w-full mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsRenameModalOpen(false)}
+                  className="py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors active:scale-95 cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  id="save-device-name-btn"
+                  disabled={!editingName.trim()}
+                  onClick={() => {
+                    const trimmed = editingName.trim();
+                    if (trimmed) {
+                      onRenameDevice?.(trimmed);
+                      setIsRenameModalOpen(false);
+                    }
+                  }}
+                  className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition-all active:scale-95 cursor-pointer"
+                >
+                  保存修改
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Secondary Confirmation Modal for Unbinding Device */}
       <AnimatePresence>
