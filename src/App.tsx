@@ -407,6 +407,10 @@ export default function App() {
                       initialMode={currentView === 'devices_empty' ? 'intro' : 'list'}
                       triggerActivation={activationTrigger}
                       onActivationChange={setIsBindingPageOpen}
+                      badgeCardConfig={badgeCardConfig}
+                      onUpdateBadgeCardConfig={(newConfig) => {
+                        setBadgeCardConfig(newConfig);
+                      }}
                       onSelectDevice={(device) => {
                         setIsBindingPageOpen(false);
                         setSelectedDevice(device);

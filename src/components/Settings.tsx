@@ -67,7 +67,7 @@ export function Settings({
 
   const [isUnbindModalOpen, setIsUnbindModalOpen] = useState<boolean>(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState<boolean>(false);
-  const [isBadgeCardModalOpen, setIsBadgeCardModalOpen] = useState<boolean>(false);
+  const [badgeModalMode, setBadgeModalMode] = useState<'employee' | 'admin' | null>(null);
   const [localBadgeConfig, setLocalBadgeConfig] = useState<BadgeCardConfig>(
     badgeCardConfig || DEFAULT_BADGE_CARD_CONFIG
   );
@@ -123,17 +123,18 @@ export function Settings({
 
   const percentStorage = (storageUsed / storageTotal) * 100;
 
-  if (isBadgeCardModalOpen) {
+  if (badgeModalMode !== null) {
     return (
       <BadgeCardGeneratorModal
-        isOpen={isBadgeCardModalOpen}
+        isOpen={true}
+        mode={badgeModalMode}
         initialConfig={localBadgeConfig}
-        onClose={() => setIsBadgeCardModalOpen(false)}
+        onClose={() => setBadgeModalMode(null)}
         onSaveAndSync={(newConfig, navigateToBadge) => {
           setLocalBadgeConfig(newConfig);
           onUpdateBadgeCardConfig?.(newConfig, navigateToBadge);
           if (navigateToBadge) {
-            setIsBadgeCardModalOpen(false);
+            setBadgeModalMode(null);
             onOpenEInkModule?.();
           }
         }}
@@ -229,7 +230,7 @@ export function Settings({
         </div>
       </div>
 
-      {/* Badge Identity Card Settings & 480x720 PNG Generator Entry Card */}
+      {/* Employee Entry: Badge Identity Card Settings & 480x720 PNG Generator */}
       <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-xs flex items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-xs font-bold text-slate-900">工牌身份名片设置</span>
@@ -241,7 +242,7 @@ export function Settings({
         <button
           type="button"
           id="open-badge-card-editor-btn"
-          onClick={() => setIsBadgeCardModalOpen(true)}
+          onClick={() => setBadgeModalMode('employee')}
           className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold flex items-center gap-1 flex-shrink-0 cursor-pointer shadow-xs transition-all"
         >
           <span>设置名片</span>
